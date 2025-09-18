@@ -19,3 +19,44 @@ Get databases' information in cubrid.
   "dbname": "demodb"
 }
 ```
+
+## Response Json Syntax
+| **Key** | **Description** |
+| --- | --- |
+| task | task name |
+| token | token string encrypted. |
+| dbstat | information of database status |
+
+
+### dbstat
+dbstat is composed of objects with following structure
+
+| **Key** | **Description** |
+| --- | --- |
+| cpu_kernel | |
+| cpu_user | |
+| dbname | name of database |
+| mem_physical | |
+| mem_virtual | |
+
+
+
+## Response Sample
+
+```
+{
+   "__EXEC_TIME" : "13 ms",
+   "dbstat" : [
+      {
+         "cpu_kernel" : "165147",
+         "cpu_user" : "162071",
+         "dbname" : "ha_test",
+         "mem_physical" : "549388288",
+         "mem_virtual" : "2784587776"
+      }
+   ],
+   "note" : "none",
+   "status" : "success",
+   "task" : "getdbprocstat"
+}
+```
