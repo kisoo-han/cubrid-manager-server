@@ -1,8 +1,8 @@
 # dbmtuserlogin
 
-The dbmtuserlogin interface will make a session to access by a manager user.
+The dbmtuserlogin interface will create a session to be accessed by a manager user.
 
-## Request Json Syntax
+## Request JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -26,7 +26,7 @@ The dbmtuserlogin interface will make a session to access by a manager user.
 }
 ```
 
-## Response Json Syntax
+## Response JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |

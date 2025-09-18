@@ -2,7 +2,7 @@
 
 Get admin login logs.
 
-## Request Json Syntax
+## Request JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -20,14 +20,14 @@ Get admin login logs.
 ```
 
 
-## Response Json Syntax
+## Response JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
 | note | if failed, a brief description will be given here |
 | status | execution result, success or failed. |
 | task | task name |
-| adminlofinfo | list of admin log information |
+| adminloginfo | list of admin log information |
 
 ### admin log information 
 

@@ -2,7 +2,7 @@
 
 Get logfile info.
 
-## Request Json Syntax
+## Request JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -20,7 +20,7 @@ Get logfile info.
 }
 ```
 
-## Response Json Syntax
+## Response JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -29,7 +29,7 @@ Get logfile info.
 | task | task name |
 | broker | target broker name |
 | from | |
-| logfileinfo | list of log file group |
+| logfileinfo | list of log file groups |
 
 ### logfile group
 

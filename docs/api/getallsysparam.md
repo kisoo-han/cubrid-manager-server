@@ -2,7 +2,7 @@
 
 Get configuration files.
 
-## Request Json Syntax
+## Request JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -20,7 +20,7 @@ Get configuration files.
 }
 ```
 
-## Response Json Syntax
+## Response JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -39,9 +39,8 @@ conflist is composed of objects with following structure
 
 ## Response Sample
 
-```
-
-resp message : {
+```json
+{
    "__EXEC_TIME" : "0 ms",
    "conflist" : [
       {
@@ -121,7 +120,4 @@ resp message : {
    "status" : "success",
    "task" : "getallsysparam"
 }
-
-
-
 ```

@@ -1,8 +1,8 @@
 # getdbprocstat
 
-Get databases' information in cubrid.
+Get database process statistics.
 
-## Request Json Syntax
+## Request JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -20,7 +20,7 @@ Get databases' information in cubrid.
 }
 ```
 
-## Response Json Syntax
+## Response JSON Syntax
 | **Key** | **Description** |
 | --- | --- |
 | task | task name |

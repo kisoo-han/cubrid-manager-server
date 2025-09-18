@@ -1,8 +1,8 @@
 # updatedbmtuser
 
-The updatedbmtuser interface will update dbmt user information.
+The updatedbmtuser interface will update DBMT user information.
 
-## Request Json Syntax
+## Request JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -38,7 +38,7 @@ The updatedbmtuser interface will update dbmt user information.
 }
 ```
 
-## Response Json Syntax
+## Response JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -68,7 +68,7 @@ dblist is composed of objects with following structure
 | user | information of the user |
 
 ### user
-user is composed of objects with following sturcture 
+User is composed of objects with following structure. 
 | **Key** | **Description** |
 | --- | --- |
 | @id | dbmt user name |

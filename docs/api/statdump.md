@@ -2,7 +2,7 @@
 
 Get database statistics from a statdump utility.
 
-## Request Json Syntax
+## Request JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -20,7 +20,7 @@ Get database statistics from a statdump utility.
 }
 ```
 
-## Response Json Syntax
+## Response JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -84,14 +84,14 @@ Get database statistics from a statdump utility.
 | num_query_holdable_cursors | number of holdable cursors in server |
 | num_query_inserts | number of times insert queries are operated |
 | num_query_iscans | number of times index scan is operated |
-| num_query_lscans | nmber of times list scan is operated |
+| num_query_lscans | number of times list scan is operated |
 | num_query_methscans | number of times method scan is operated |
 | num_query_mjoins | number of times merge join is operated |
 | num_query_nljoins |  number of times nested loop join is operated|
 | num_query_objfetches | number of times object is fetched |
 | num_query_selects | number of times select query is operated |
 | num_query_setscans | number of times set scan is operated |
-| num_query_sscans | number of times full scan(sqeuential scan) is operated |
+| num_query_sscans | number of times full scan(sequential scan) is operated |
 | num_query_updates | number of times update query is operated |
 | num_sort_data_pages | number of pages found in page buffer while sorting |
 | num_sort_io_pages | number of pages fetched from disk while sorting |

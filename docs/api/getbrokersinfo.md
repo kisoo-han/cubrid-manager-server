@@ -1,8 +1,8 @@
 # getbrokersinfo
 
-Get informations of brokers.
+Get information of brokers.
 
-## Request JSON Sysntax
+## Request JSON syntax
 
 | **Key** | **Description** |
 | --- | --- |

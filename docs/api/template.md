@@ -1,6 +1,6 @@
 #
 
-## Request JSON Sysntax
+## Request JSON syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -10,7 +10,7 @@
 ## Request Sample
 
 
-## Response Json Syntax
+## Response JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |

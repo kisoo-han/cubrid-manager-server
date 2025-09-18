@@ -2,7 +2,7 @@
 
 Get specified database space information.
 
-## Request Json Syntax
+## Request JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -20,7 +20,7 @@ Get specified database space information.
 }
 ```
 
-## Response Json Syntax
+## Response JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -30,7 +30,7 @@ Get specified database space information.
 | dbinfo | list of information about storage volume |
 | dbname | name of database |
 | fileinfo | |
-| freespace | size of availabe space |
+| freespace | size of available space |
 | logpagesize | size of log page |
 | pagesize | size of each page |
 | spaceinfo | list of information about space of volumes |

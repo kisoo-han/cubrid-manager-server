@@ -1,8 +1,8 @@
 # broker_stop
 
-The broker_stop interface will stop specified broker.
+The broker_stop interface will stop a specified broker.
 
-## Request Json Syntax
+## Request JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -21,7 +21,7 @@ The broker_stop interface will stop specified broker.
 }
 ```
 
-## Response Json Syntax
+## Response JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |

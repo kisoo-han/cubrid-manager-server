@@ -2,7 +2,7 @@
 
 Run a paramdump utility.
 
-## Request Json Syntax
+## Request JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -24,7 +24,7 @@ Run a paramdump utility.
 
 
 
-## Response Json Syntax
+## Response JSON Syntax
 
 | **Key** | **Description** |
 | --- | --- |
@@ -67,13 +67,13 @@ Run a paramdump utility.
 | data_buffer_neighbor_flush_nondirty | Determines whether to flush clean pages adjacent to dirty pages when victim candidate pages are flushed while the neighbor flush option is enabled  |
 | data_buffer_neighbor_flush_pages | Number of adjacent pages which would be flushed using background flush |
 | data_buffer_pages | Size of data buffer pages which is cached in memory by database server. Used in systems with version prior to 2008 R4.0 |
-| data_buffer_size | Ssize of data buffer which is cached in memory by database server |
+| data_buffer_size | size of data buffer which is cached in memory by database server |
 | data_file_os_advise | Parameter to enhance I/O performance which is applicable only to Unix-based system  |
 | db_hosts | Determines the list of available database server hosts and the order of connection |
 | db_volume_size | default size of the database volume created when the --db-volume-size option is omitted in the cubrid createdb and cubrid addvoldb utilities.  |
-| dblink_auto_commit | Dtermines wheter dblink query to be automatically committed immediately |
+| dblink_auto_commit | Determines whether dblink query to be automatically committed immediately |
 | ddl_audit_log | Determines whether to log every `DDL` operation |
-| ddl_audit_log_size | Maximum size of the `DDLAUDIT' log file |
+| ddl_audit_log_size | Maximum size of the `DDLAUDIT` log file |
 | deadlock_detection_interval_in_secs | interval for detecting deadlocks involving suspended transactions |
 | deduplicate_key_level | Value of deduplicate level which is assigned implicitly in Index creation clause.|
 | default_week_format | default value of `mode` parameter of `WEEK()` function |
@@ -127,7 +127,7 @@ Run a paramdump utility.
 | index_scan_key_buffer_pages | |
 | index_scan_key_buffer_size | |
 | index_scan_oid_buffer_pages | Number of buffer pages where the OID list is to be temporarily saved during the index scan. After version 2008 R4.0, this parameter is replaced with `index_scan_oid_buffer_size`. |
-| index_scan_oid_buffer_size | size of the buffer to temporally store the list of OID during index scan, the unit is kilobytes |
+| index_scan_oid_buffer_size | size of the buffer to temporarily store the list of OID during index scan, the unit is kilobytes |
 | index_unfill_factor | Ratio of the size of extra space for index page node when index is created. |
 | intl_check_input_string | Determines whether to check if input strings match the character set being used |
 | intl_collation | specifies the name of the collation for the specific application client |
@@ -135,17 +135,17 @@ Run a paramdump utility.
 | intl_mbs_support |  Specifies whether or not to support multibyte character set. After version 2008 R4.0, this parameter is deprecated. |
 | intl_number_lang | locale applied when formatting strings as numbers or numbers as strings in conversion functions |
 | isolation_level | isolation level of transaction |
-| json_max_array_idx | sets the size limit when JSON functions modify the size of an array |
+| JSON_max_array_idx | sets the size limit when JSON functions modify the size of an array |
 | loaddb_worker_count | Maximum number of threads allocated just for `loaddb` session |
 | lock_escalation | maximum number of the row level locks allowed before escalating to a table level lock  |
 | lock_timeout | client parameter to specify the lock wait timeout |
-| lock_timeout_in_secs | client parameter (in secons) to specify the lock wait timeout |
+| lock_timeout_in_secs | client parameter (in seconds) to specify the lock wait timeout |
 | log_buffer_pages | Number of log buffer pages to be cached in the memory. After version 2008 R4.0, this parameter is replaced with `log_buffer_size`. |
 | log_buffer_size | size of the log buffer cached in memory |
 | log_compress | |
 | log_max_archives | Maximum number of archive log files to preserve |
 | log_trace_flush_time | If log flushing takes longer than the time set by this parameter, the event is recorded in the database server log |
-| log_volume_size | Default size of the log volume file created when the --log-volume-size is ommitted in the `cubrid createdb` utility |
+| log_volume_size | Default size of the log volume file created when the --log-volume-size is omitted in the `cubrid createdb` utility |
 | lru_buffer_ratio | |
 | lru_hot_ratio | |
 | max_agg_hash_size | Maximum memory size allocated per transaction for hashing tuple groups in queries that include aggregation |
@@ -155,9 +155,9 @@ Run a paramdump utility.
 | max_flush_size_per_second | Maximum flush capacity for the flush operation from buffer to disk. |
 | max_hash_list_scan_size | Maximum memory size allocated per transaction for building hash table in queries that include subquery |
 | max_plan_cache_clones | Maximum clone cache value that one plan can have |
-| max_plan_cache_entries | Maxinum number of query execution plan cached in memory |
+| max_plan_cache_entries | Maximum number of query execution plan cached in memory |
 | max_query_cache_entries | Maximum number of queries that can be cached |
-| max_query_per_tran | Maximum nubmer of unclosed query that single transaction can hold at once  |
+| max_query_per_tran | Maximum number of unclosed query that single transaction can hold at once  |
 | max_subquery_cache_size | Maximum size of subquery cache |
 | monitor_waiting_thread | |
 | multi_range_optimization_limit | Performs index sort optimization for queries with `multi-range conditions (e.g., col IN (?, ?, ..., ?))` when the number of rows specified by the LIMIT clause is within the value of this parameter. |
@@ -349,7 +349,7 @@ Run a paramdump utility.
          "intl_mbs_support" : "n",
          "intl_number_lang" : "\"ko_KR\"",
          "isolation_level" : "\"tran_rep_class_commit_instance\"",
-         "json_max_array_idx" : "65536",
+         "JSON_max_array_idx" : "65536",
          "loaddb_worker_count" : "8",
          "lock_escalation" : "100000",
          "lock_timeout" : "1.000 sec",
@@ -561,7 +561,7 @@ Run a paramdump utility.
          "intl_mbs_support" : "n",
          "intl_number_lang" : "\"\"",
          "isolation_level" : "\"tran_rep_class_commit_instance\"",
-         "json_max_array_idx" : "65536",
+         "JSON_max_array_idx" : "65536",
          "loaddb_worker_count" : "8",
          "lock_escalation" : "100000",
          "lock_timeout" : "1.000 sec",
