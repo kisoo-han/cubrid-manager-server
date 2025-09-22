@@ -6,11 +6,12 @@ Returns insert_counter, update_counter, delete_counter, commit_counter, fail_cou
 
 | **Key** | **Description** |
 | --- | --- |
-| task | task name |
-| token | token string encrypted. |
-| dbname | database name |
-| dbid | dba user id |
-| dbpasswd | a password |
+
+| task | Task name |
+| token | Token string encrypted. |
+| dbname | Database name |
+| dbid | DBA user ID |
+| dbpasswd | DBA user Password |
 
 ## Request Sample
 

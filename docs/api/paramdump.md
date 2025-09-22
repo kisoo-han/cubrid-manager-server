@@ -30,13 +30,13 @@ Run a paramdump utility.
 | --- | --- |
 | access_ip_control | Specifies whether to enable IP-based access control to restrict server connections  |
 | access_ip_control_file | Name of the file which contains the list of the allowed IP addresses for server |
-| adaptive_flush_control | determines whether flush capacity should be automatically adjusted every 50ms depending on work status during flush operation  |
+| adaptive_flush_control | Determines whether flush capacity should be automatically adjusted every 50ms depending on work status during flush operation  |
 | add_column_update_hard_default | Determines whether to provide a hard default value for a new column added using the `ALTER TABLE … ADD COLUMN` clause  |
 | agg_hash_respect_order | Specifies whether groups in aggregate functions are returned in order |
 | allow_truncated_string | Specifies whether to allow string truncation in string operations used in INSERT or UPDATE queries |
-| alter_table_change_type_strict | determines whether to allow values of columns to be converted when data type is changed |
-| ansi_quotes | determines how double quotation marks and single quotation marks should be processed. on 'yes', double quotation marks will be processed as Identifier quoting symbol |
-| async_commit | enable asynchronous commit |
+| alter_table_change_type_strict | Determines whether to allow values of columns to be converted when data type is changed |
+| ansi_quotes | Determines how double quotation marks and single quotation marks should be processed. On 'yes', double quotation marks will be processed as Identifier quoting symbol |
+| async_commit | Enable asynchronous commit |
 | auto_restart_server | Determines if server should be restarted when `cub_master` process is terminated due to critical error |
 | background_archiving | determines whether to periodically generate temporary archive logs at specific intervals |
 | backup_volume_max_size_bytes | Split size of backup volume files created by the `cubrid backupdb` utility. |
@@ -93,7 +93,7 @@ Run a paramdump utility.
 | force_remove_log_archives | Specifies whether to allow deletion of older log archive files, excluding the most recent ones as defined by log_max_archive   |
 | garbage_collection | |
 | group_commit_interval_in_msecs | interval (in msec) of group commit |
-| group_concat_max_len | maximum return value of `GROUP_CONCAT()` function |
+| group_concat_max_len | Maximum return value of `GROUP_CONCAT()` function |
 | ha_apply_max_mem_size | Value of maximum memory that the replication log reflection process of CUBRID HA can use. |
 | ha_applylogdb_ignore_error_list | List of error codes to be ignored even if they occur during replication in the CUBRID HA process. |
 | ha_applylogdb_max_commit_interval | |
@@ -137,8 +137,8 @@ Run a paramdump utility.
 | isolation_level | isolation level of transaction |
 | JSON_max_array_idx | sets the size limit when JSON functions modify the size of an array |
 | loaddb_worker_count | Maximum number of threads allocated just for `loaddb` session |
-| lock_escalation | maximum number of the row level locks allowed before escalating to a table level lock  |
-| lock_timeout | client parameter to specify the lock wait timeout |
+| lock_escalation | Maximum number of the row level locks allowed before escalating to a table level lock  |
+| lock_timeout | Client parameter to specify the lock wait timeout |
 | lock_timeout_in_secs | client parameter (in seconds) to specify the lock wait timeout |
 | log_buffer_pages | Number of log buffer pages to be cached in the memory. After version 2008 R4.0, this parameter is replaced with `log_buffer_size`. |
 | log_buffer_size | size of the log buffer cached in memory |
