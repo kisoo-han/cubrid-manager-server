@@ -5584,6 +5584,7 @@ ts_backup_vol_info (nvplist *req, nvplist *res, char *_dbmt_error)
   char cmd_name[CUBRID_CMD_NAME_LEN];
   const char *argv[10];
   int argc = 0;
+  int status = EXIT_SUCCESS;
 
   dbname = nv_get_val (req, "dbname");
   make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_BACKUPVOLINFO, PATH_MAX);
@@ -5626,7 +5627,7 @@ ts_backup_vol_info (nvplist *req, nvplist *res, char *_dbmt_error)
 #if defined(WINDOWS)
   ret = run_child (argv, 1, NULL, tmpfile, NULL, NULL);    /* restoredb -t */
 #else
-  ret = run_child (argv, 1, "/dev/null", tmpfile, NULL, NULL);    /* restoredb -t */
+  ret = run_child (argv, 1, "/dev/null", tmpfile, NULL, &status);    /* restoredb -t */
 #endif
   if (ret < 0)
     {
@@ -5649,7 +5650,15 @@ ts_backup_vol_info (nvplist *req, nvplist *res, char *_dbmt_error)
   fclose (infile);
   unlink (tmpfile);
 
-  return ERR_NO_ERROR;
+  if (status == EXIT_SUCCESS)
+    {
+      return ERR_NO_ERROR;
+    }
+  else
+    {
+      snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "failed to get backup info");
+      return ERR_WITH_MSG;
+    }
 }
 
 int
@@ -5766,6 +5775,7 @@ tsGetEnvironment (nvplist *req, nvplist *res, char *_dbmt_error)
   FILE *infile;
   char cmd_name[CUBRID_CMD_NAME_LEN];
   const char *argv[5];
+  int rc = ERR_NO_ERROR;
 
   nv_add_nvp (res, "CUBRID", sco.szCubrid);
   nv_add_nvp (res, "CUBRID_DATABASES", sco.szCubrid_databases);
@@ -5794,6 +5804,7 @@ tsGetEnvironment (nvplist *req, nvplist *res, char *_dbmt_error)
   else
     {
       nv_add_nvp (res, "CUBRIDVER", "version information not available");
+      rc = ERR_WITH_MSG;
     }
 
   make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_GET_BROKER_VERSION, PATH_MAX);
@@ -5817,6 +5828,7 @@ tsGetEnvironment (nvplist *req, nvplist *res, char *_dbmt_error)
   else
     {
       nv_add_nvp (res, "BROKERVER", "version information not available");
+      rc = ERR_WITH_MSG;
     }
 
   if (sco.hmtab1 == 1)
@@ -5868,7 +5880,12 @@ tsGetEnvironment (nvplist *req, nvplist *res, char *_dbmt_error)
   nv_add_nvp (res, "osinfo", "unknown");
 #endif
 
-  return ERR_NO_ERROR;
+  if (rc == ERR_WITH_MSG)
+    {
+      snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "some CUBRID Environments are not available");
+    }
+
+  return rc;
 }
 
 int
@@ -9626,6 +9643,8 @@ ts_executecasrunner (nvplist *cli_request, nvplist *cli_response,
   T_THREAD th_id;
 #endif
   char use_tmplogfile = FALSE;
+  int status = EXIT_SUCCESS;
+  int ret;
 
   brokername = nv_get_val (cli_request, "brokername");
   dbname = nv_get_val (cli_request, "dbname");
@@ -9734,7 +9753,12 @@ ts_executecasrunner (nvplist *cli_request, nvplist *cli_response,
   argv[++i] = log_converter_res;
   argv[++i] = NULL;
 
-  if (run_child (argv, 1, NULL, NULL, NULL, NULL) < 0)
+#if defined (WINDOWS)
+  ret = run_child (argv, 1, NULL, NULL, NULL, NULL);
+#else
+  ret = run_child (argv, 1, NULL, NULL, NULL, &status);
+#endif
+  if (ret < 0 || status != EXIT_SUCCESS)
     {
       /* broker_log_converter */
       strcpy (diag_error, argv[0]);
@@ -9776,7 +9800,14 @@ ts_executecasrunner (nvplist *cli_request, nvplist *cli_response,
 	    "CUBRID_MANAGER_OUT_MSG_FILE=%s", resfile2);
   putenv (out_msg_file_env);
 
-  if (run_child (argv, 1, NULL, NULL, NULL, NULL) < 0)
+#if defined (WINDOWS)
+  status = EXIT_SUCCESS;
+  ret = run_child (argv, 1, NULL, NULL, NULL, NULL);
+#else
+  ret = run_child (argv, 1, NULL, NULL, NULL, &status);
+#endif
+
+  if (ret < 0 || status != EXIT_SUCCESS)
     {
       /* broker_log_runner */
       return ERR_SYSTEM_CALL;
@@ -11376,6 +11407,8 @@ ts_run_script (nvplist *req, nvplist *res, char *_dbmt_error)
   char *n, *v;
   int retval = ERR_NO_ERROR;
   int i;
+  int status = EXIT_SUCCESS;
+  int ret;
 
   make_temp_filepath (outfile, sco.dbmt_tmp_dir, "DBMT_task_out", TS_RUN_SCRIPT, PATH_MAX);
   make_temp_filepath (errfile, sco.dbmt_tmp_dir, "DBMT_task_err", TS_RUN_SCRIPT, PATH_MAX);
@@ -11400,7 +11433,12 @@ ts_run_script (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc++] = NULL;
 
   /* run *.bat or *.sh. */
-  if (run_child (argv, 1, NULL, outfile, errfile, NULL) < 0)
+#if defined (WINDOWS)
+  ret = run_child (argv, 1, NULL, outfile, errfile, NULL);
+#else
+  ret = run_child (argv, 1, NULL, outfile, errfile, &status);
+#endif
+  if (ret < 0 || status != EXIT_SUCCESS)
     {
       strcpy_limit (_dbmt_error, argv[0], DBMT_ERROR_MSG_SIZE);
       retval = ERR_SYSTEM_CALL;
@@ -15236,6 +15274,7 @@ ts_ha_copylogdb (nvplist *req, nvplist *res, char *_dbmt_error)
   int argc = 0;
   int pid = -1;
   int ret_val = 0;
+  int status = EXIT_SUCCESS;
 
 
   if ((dbname = nv_get_val (req, "dbname")) == NULL)
@@ -15280,7 +15319,11 @@ ts_ha_copylogdb (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc] = NULL;
 
   // run "cubrid heartbeat copylogdb <start|stop> dbname peer_node"
+#if defined (WINDOWS)
   pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);
+#else
+  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, &status);
+#endif
 
   if (pid < 0)
     {
@@ -15297,6 +15340,12 @@ ts_ha_copylogdb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   unlink (stdout_log_file);
   unlink (stderr_log_file);
+
+  if (status != EXIT_SUCCESS)
+    {
+      snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "heartbeat command failed.");
+      ret_val = ERR_WITH_MSG;
+    }
 
   return ret_val;
 
@@ -15318,6 +15367,7 @@ ts_ha_applylogdb (nvplist *req, nvplist *res, char *_dbmt_error)
   int argc = 0;
   int pid = -1;
   int ret_val = 0;
+  int status = EXIT_SUCCESS;
 
 
   if ((dbname = nv_get_val (req, "dbname")) == NULL)
@@ -15362,7 +15412,11 @@ ts_ha_applylogdb (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc] = NULL;
 
   // run "cubrid heartbeat applylogdb <start|stop> dbname peer_node"
+#if defined (WINDOWS)
   pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);
+#else
+  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, &status);
+#endif
 
   if (pid < 0)
     {
@@ -15379,6 +15433,12 @@ ts_ha_applylogdb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   unlink (stdout_log_file);
   unlink (stderr_log_file);
+
+  if (status != EXIT_SUCCESS)
+    {
+      snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "applylogdb failed.");
+      ret_val = ERR_WITH_MSG;
+    }
 
   return ret_val;
 
@@ -16287,6 +16347,8 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   int argc = 0;
   char note [20];
   int slot = -1;
+  int status = EXIT_SUCCESS;
+
   db_name = nv_get_val (req, "_DBNAME");
   interval_str = nv_get_val (req, "interval");
   if (!interval_str || !db_name)
@@ -16322,10 +16384,10 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
 #if defined (WINDOWS)
   ret_val = run_child (argv, 0, NULL, NULL, NULL, NULL);
 #else
-  ret_val = run_child (argv, 0, NULL, "/dev/null", "/dev/null", NULL);
+  ret_val = run_child (argv, 0, NULL, "/dev/null", "/dev/null", &status);
 #endif
 
-  if (ret_val < 0)
+  if (ret_val < 0 || status != EXIT_SUCCESS)
     {
       nv_update_val (res, "note", "could not execute statdump");
       return -1;
