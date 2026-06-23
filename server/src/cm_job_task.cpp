@@ -358,6 +358,22 @@ static int get_next_sqltext (FILE * qfp, char *qry_buf, int offset, int query_fi
 static void unlink_schema_files (const char *schema_list_file);
 
 static int is_filename_matched (const char *fname, const char *pattern);
+static int file_not_exist (char *path, char *skip_code, char *_dbmt_error);
+static int schema_file_not_exist (const char *schema_list_file, char *_dbmt_error);
+static int expand_path (const char *src, char *dst, int dest_len);
+
+static char *allowed_env[]=
+{
+  "$CUBRID",
+  "$CUBRID_DATABASES"
+};
+static int allowed_env_len = sizeof (allowed_env) / sizeof (char *);
+
+enum allowed_env_num
+{
+  ENV_CUBRID = 0,
+  ENV_CUBRID_DATABASES = 1
+};
 
 static int
 _verify_user_passwd (char *dbname, char *dbuser, char *dbpasswd,
@@ -5351,6 +5367,14 @@ ts_loaddb (nvplist *req, nvplist *res, char *_dbmt_error)
       snprintf (schema_file_list_opt, PATH_MAX, "%s%s", "--" LOAD_SCHEMA_FILE_LIST_L "=", schema_file_list);
       argv[argc++] = schema_file_list_opt;
     }
+
+  if (file_not_exist (schema, "none", _dbmt_error) || file_not_exist (object, "none", _dbmt_error)
+     || file_not_exist (index, "none", _dbmt_error) || file_not_exist (ignore_class_file, "none", _dbmt_error)
+     || file_not_exist (schema_file_list, "none", _dbmt_error) || schema_file_not_exist (schema_file_list, _dbmt_error))
+    {
+      return ERR_WITH_MSG;
+    }
+
   argv[argc++] = dbname;
   argv[argc++] = NULL;
 
@@ -16622,4 +16646,199 @@ is_filename_matched (const char *fname, const char *pattern)
     }
 
     return 1;
+}
+
+static int
+file_not_exist (char *path, char *skip_code, char *_dbmt_error)
+{
+  char buf[PATH_MAX];
+  char new_path[PATH_MAX];
+  char *p = NULL;
+  int ret = 0;
+  int not_allowed = 1;
+  int i;
+
+
+  if (path == NULL || (skip_code != NULL && strcmp (path, skip_code) == 0))
+    {
+      return 0;
+    }
+
+  if (path[0] != '$')
+    {
+      ret = access (path, F_OK) != 0 ? 1 : 0;
+    }
+  else
+    {
+      snprintf (buf, PATH_MAX, "%s", path);
+      p = strchr (buf, '/');
+
+      if (p)
+	{
+	  *p = '\0';
+	}
+      for (i = 0; i < allowed_env_len; i++)
+	{
+	  if (strcmp (buf, allowed_env[i]) == 0)
+	    {
+	      not_allowed = 0;
+	      break;
+	    }
+	}
+
+      if (not_allowed)
+	{
+	  snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "env variable not allowed: %s", buf);
+	  return 1;
+	}
+
+      char *env_value = getenv (buf + 1);
+      if (env_value == NULL)
+	{
+	  snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "file does not exists: %s", path);
+	  return 1;
+	}
+
+      if (p)
+	{
+	  snprintf (new_path, PATH_MAX, "%s/%s", env_value, p + 1);
+	}
+      else
+	{
+	  snprintf (new_path, PATH_MAX, "%s", env_value);
+	}
+
+      ret = access (new_path, F_OK) != 0 ? 1 : 0;
+    }
+
+  if (ret == 1)
+    {
+      snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "file does not exists: %s", path);
+    }
+
+  return ret;
+}
+
+static int
+schema_file_not_exist (const char *schema_list_file, char *_dbmt_error)
+{
+  FILE *fp;
+  char *p, filename[PATH_MAX] = { 0, };
+  char path_name[PATH_MAX*2];
+  char path[PATH_MAX];
+  char full_filename[PATH_MAX];
+
+  if (schema_list_file == NULL || strcmp (schema_list_file, "none") == 0)
+    {
+      return 0;
+    }
+
+  if (expand_path (schema_list_file, full_filename, PATH_MAX) || (fp = fopen (full_filename, "r")) == NULL)
+    {
+      snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "file does not exists: %s", schema_list_file);
+      return 1;
+    }
+
+#if defined (WINDOWS)
+  {
+    char drive[_MAX_DRIVE];
+    char dir[PATH_MAX];
+
+    if (_splitpath_s(schema_list_file, drive, _MAX_DRIVE, dir, PATH_MAX, NULL, 0, NULL, 0) == 0)
+      {
+	snprintf (path, PATH_MAX, "%s%s", drive, dir);
+      }
+    else
+      {
+	snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "file does not exists: %s", schema_list_file);
+	fclose (fp);
+	return 1;
+      }
+  }
+#else
+  snprintf (path, PATH_MAX, "%s", schema_list_file);
+  if (dirname(path) == NULL)
+    {
+      snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "file does not exists: %s", schema_list_file);
+      fclose (fp);
+      return 1;
+    }
+#endif
+
+  while (fgets (filename, PATH_MAX, fp))
+    {
+      p = strchr (filename, '\n');
+      if (p)
+	{
+	  *p = '\0';
+	}
+      snprintf (path_name, sizeof (path_name), "%s/%s", path, filename);
+
+      if (file_not_exist (path_name, NULL, _dbmt_error))
+	{
+	  snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "file does not exists: %s", path_name);
+	  fclose (fp);
+	  return 1;
+	}
+    }
+
+  fclose (fp);
+  return 0;
+}
+
+static int
+expand_path (const char *src, char *dst, int dest_len)
+{
+  int i;
+  int env_num = -1;
+  char buf[PATH_MAX];
+  char *p;
+
+  if (src == NULL || dst == NULL || dest_len <= 0)
+    {
+      return 0;
+    }
+
+  if (src[0] == '$')
+    {
+      snprintf (buf, PATH_MAX, "%s", src);
+      p = strchr (buf, '/');
+      if (p)
+	{
+	  *p = '\0';
+	}
+
+      for (i = 0; i < allowed_env_len; i++)
+	{
+	  if (strcmp (buf, allowed_env[i]) == 0)
+	    {
+	      env_num = i;
+	      break;
+	    }
+	}
+
+      if (env_num < 0)
+	{
+	  return 1;
+	}
+
+      if (p)
+	{
+	  *p = '/';
+	}
+      if (p)
+	{
+	  snprintf (dst, dest_len, "%s/%s", env_num == 0 ? sco.szCubrid : sco.szCubrid_databases, p + 1);
+	}
+      else
+	{
+	  snprintf (dst, dest_len, "%s", buf);
+	}
+    }
+  else
+    {
+      snprintf (dst, dest_len, "%s", src);
+    }
+
+  return 0;
 }
