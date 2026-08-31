@@ -434,14 +434,14 @@ _run_child (const char *const argv[], int wait_flag, char *task_name,
   if (stdout_file == NULL)
     {
       snprintf (buf, PATH_MAX - 1, "%s_out_tmp", task_name);
-      make_temp_filepath (tmp_out_file, sco.dbmt_tmp_dir, buf, TS_RUN_CHILD, PATH_MAX);
+      gen_tempfile_path (tmp_out_file, sco.dbmt_tmp_dir, buf, TS_RUN_CHILD, PATH_MAX);
     }
   else
     {
       snprintf (tmp_out_file, PATH_MAX, stdout_file);
     }
   snprintf (buf, PATH_MAX - 1, "%s_err_tmp", task_name);
-  make_temp_filepath (tmp_err_file, sco.dbmt_tmp_dir, buf, TS_RUN_CHILD, PATH_MAX);
+  gen_tempfile_path (tmp_err_file, sco.dbmt_tmp_dir, buf, TS_RUN_CHILD, PATH_MAX);
 
   if (run_child_env
       (argv, wait_flag, NULL, tmp_out_file, tmp_err_file, &exit_code, envp) < 0)
@@ -1102,7 +1102,7 @@ ts2_start_unicas (nvplist *in, nvplist *out, char *_dbmt_error)
   argv[argc++] = "start";
   argv[argc++] = NULL;
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "broker_start", TS2_STARTBROKER, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "broker_start", TS2_STARTBROKER, PATH_MAX);
   if (run_child (argv, 1, NULL, NULL, cubrid_err_file, &rc) < 0 || rc != 0)
     {
       if (read_error_file (cubrid_err_file, _dbmt_error, -1) < 0)
@@ -1598,7 +1598,7 @@ ts2_start_broker (nvplist *in, nvplist *out, char *_dbmt_error)
   argv[argc++] = bname;
   argv[argc++] = NULL;
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "broker_start", TS2_STARTBROKER, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "broker_start", TS2_STARTBROKER, PATH_MAX);
 
   if (run_child (argv, 1, NULL, NULL, cubrid_err_file, &rc) < 0 || rc != 0)
     {
@@ -2826,7 +2826,7 @@ tsCreateDB (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc++] = charset;
   argv[argc++] = NULL;
 
-  make_temp_filepath (createdb_err_file, sco.dbmt_tmp_dir, "createdb_err_file", TS_CREATEDB, PATH_MAX);
+  gen_tempfile_path (createdb_err_file, sco.dbmt_tmp_dir, "createdb_err_file", TS_CREATEDB, PATH_MAX);
 
   retval = run_child_env (argv, 1, NULL, NULL, createdb_err_file, NULL);    /* createdb */
 
@@ -3044,7 +3044,7 @@ tsDeleteDB (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc++] = dbname;
   argv[argc++] = NULL;
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "deletedb_err", TS_DELETEDB, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "deletedb_err", TS_DELETEDB, PATH_MAX);
 
   /*get dbvolpath and dblogpath. */
   get_dbvoldir (dbvolpath, sizeof (dbvolpath), dbname, cubrid_err_file);
@@ -3172,7 +3172,7 @@ tsRenameDB (nvplist *req, nvplist *res, char *_dbmt_error)
 #endif
       char *p;
 
-      make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_RENAMEDB, PATH_MAX);
+      gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_RENAMEDB, PATH_MAX);
       if ((outfile = fopen (tmpfile, "w")) == NULL)
 	{
 	  return ERR_TMPFILE_OPEN_FAIL;
@@ -3644,7 +3644,7 @@ tsRunAddvoldb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   argv[argc++] = NULL;
 
-  make_temp_filepath (err_file, sco.dbmt_tmp_dir, "runaddvoldb_err_tmp", TS_ADDVOLDB, PATH_MAX);
+  gen_tempfile_path (err_file, sco.dbmt_tmp_dir, "runaddvoldb_err_tmp", TS_ADDVOLDB, PATH_MAX);
 
   ret = run_child (argv, 1, NULL, NULL, err_file, NULL);    /* addvoldb */
   if (read_error_file (err_file, _dbmt_error, DBMT_ERROR_MSG_SIZE) < 0)
@@ -3763,7 +3763,7 @@ ts_copydb (nvplist *req, nvplist *res, char *_dbmt_error)
 #endif
       char *p;
 
-      make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_COPYDB, PATH_MAX);
+      gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_COPYDB, PATH_MAX);
       if ((outfile = fopen (tmpfile, "w")) == NULL)
 	{
 	  return ERR_TMPFILE_OPEN_FAIL;
@@ -3857,7 +3857,7 @@ ts_copydb (nvplist *req, nvplist *res, char *_dbmt_error)
       return ERR_DIR_CREATE_FAIL;
     }
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "copydb_err_tmp", TS_COPYDB, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "copydb_err_tmp", TS_COPYDB, PATH_MAX);
 
   retval = run_child (argv, 1, NULL, NULL, cubrid_err_file, NULL);    /* copydb */
   if (adv_flag)
@@ -4014,13 +4014,13 @@ ts_plandump (nvplist *req, nvplist *res, char *_dbmt_error)
 
   argv[argc++] = NULL;
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "plandump_err_tmp", TS_PLANDUMP, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "plandump_err_tmp", TS_PLANDUMP, PATH_MAX);
 
   /*
   * create a new tmp file to record the content
   * that returned by plandump.
   */
-  make_temp_filepath (tmpfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_PLANDUMP, PATH_MAX);
+  gen_tempfile_path (tmpfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_PLANDUMP, PATH_MAX);
 
   if (run_child (argv, 1, NULL, tmpfilepath, cubrid_err_file, NULL) < 0)    /* plandump */
     {
@@ -4124,13 +4124,13 @@ ts_paramdump (nvplist *req, nvplist *res, char *_dbmt_error)
 
   argv[argc++] = NULL;
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "paramdump_err_tmp", TS_PARAMDUMP, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "paramdump_err_tmp", TS_PARAMDUMP, PATH_MAX);
 
   /*
   * create a new tmp file to record the content
   * that returned by plandump.
   */
-  make_temp_filepath (tmpfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_PARAMDUMP, PATH_MAX);
+  gen_tempfile_path (tmpfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_PARAMDUMP, PATH_MAX);
 
   if (run_child (argv, 1, NULL, tmpfilepath, cubrid_err_file, NULL) < 0)    /* paramdump */
     {
@@ -4573,7 +4573,7 @@ ts_compactdb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   if (class_names != NULL)
     {
-      make_temp_filepath (class_names_file, sco.dbmt_tmp_dir, "compactdb_input_class", TS_COMPACTDB, PATH_MAX);
+      gen_tempfile_path (class_names_file, sco.dbmt_tmp_dir, "compactdb_input_class", TS_COMPACTDB, PATH_MAX);
 
       retval = create_input_class_file (req, res, class_names_file, _dbmt_error);
       if (retval == ERR_TMPFILE_OPEN_FAIL)
@@ -4614,14 +4614,14 @@ ts_compactdb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   if (createtmpfile != 0)
     {
-      make_temp_filepath (out_file, sco.dbmt_tmp_dir, "DBMT_task", TS_COMPACTDB, PATH_MAX);
+      gen_tempfile_path (out_file, sco.dbmt_tmp_dir, "DBMT_task", TS_COMPACTDB, PATH_MAX);
     }
   else
     {
-      make_temp_filepath (out_file, sco.dbmt_tmp_dir, "compactdb_out_tmp", TS_COMPACTDB, PATH_MAX);
+      gen_tempfile_path (out_file, sco.dbmt_tmp_dir, "compactdb_out_tmp", TS_COMPACTDB, PATH_MAX);
     }
 
-  make_temp_filepath (err_file, sco.dbmt_tmp_dir, "compactdb_err_tmp", TS_COMPACTDB, PATH_MAX);
+  gen_tempfile_path (err_file, sco.dbmt_tmp_dir, "compactdb_err_tmp", TS_COMPACTDB, PATH_MAX);
 
   if (run_child (argv, 1, NULL, out_file, err_file, &exit_code) < 0)
     {
@@ -4783,7 +4783,7 @@ ts_backupdb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   argv[argc++] = NULL;
 
-  make_temp_filepath (inputfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_BACKUPDB, PATH_MAX);
+  gen_tempfile_path (inputfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_BACKUPDB, PATH_MAX);
   inputfile = fopen (inputfilepath, "w");
   if (inputfile)
     {
@@ -4795,7 +4795,7 @@ ts_backupdb (nvplist *req, nvplist *res, char *_dbmt_error)
       return ERR_FILE_OPEN_FAIL;
     }
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "backupdb_err_tmp", TS_BACKUPDB, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "backupdb_err_tmp", TS_BACKUPDB, PATH_MAX);
 
   if (run_child (argv, 1, inputfilepath, NULL, cubrid_err_file, NULL) < 0)
     {
@@ -4928,7 +4928,7 @@ ts_unloaddb (nvplist *req, nvplist *res, char *_dbmt_error)
       return ERR_WITH_MSG;
     }
   /* makeup upload class list file */
-  make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_UNLOADDB, PATH_MAX);
+  gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_UNLOADDB, PATH_MAX);
   if ((outfile = fopen (tmpfile, "w")) == NULL)
     {
       return ERR_TMPFILE_OPEN_FAIL;
@@ -5064,7 +5064,7 @@ ts_unloaddb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   argv[argc++] = NULL;
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "unloaddb_err_tmp", TS_UNLOADDB, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "unloaddb_err_tmp", TS_UNLOADDB, PATH_MAX);
 
   if (run_child (argv, 1, NULL, NULL, cubrid_err_file, NULL) < 0)
     {
@@ -5171,7 +5171,7 @@ ts_unloaddb (nvplist *req, nvplist *res, char *_dbmt_error)
     }
   else
     {
-      make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_UNLOADDB, PATH_MAX);
+      gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_UNLOADDB, PATH_MAX);
       outfile = fopen (tmpfile, "w");
       if (outfile == NULL)
 	{
@@ -5398,7 +5398,7 @@ ts_loaddb (nvplist *req, nvplist *res, char *_dbmt_error)
       return ERR_DB_ACTIVE;
     }
 
-  make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_LOADDB, PATH_MAX);
+  gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_LOADDB, PATH_MAX);
   cubrid_cmd_name (cmd_name);
 
   argc = 0;
@@ -5514,7 +5514,7 @@ ts_loaddb (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc++] = dbname;
   argv[argc++] = NULL;
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "loaddb_err_tmp", TS_LOADDB, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "loaddb_err_tmp", TS_LOADDB, PATH_MAX);
 
   retval = run_child (argv, 1, NULL, tmpfile, cubrid_err_file, &exit_status);    /* loaddb */
 
@@ -5711,7 +5711,7 @@ ts_restoredb (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc++] = dbname;
   argv[argc++] = NULL;
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "restoredb_err_tmp", TS_RESTOREDB, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "restoredb_err_tmp", TS_RESTOREDB, PATH_MAX);
 
   if (run_child (argv, 1, NULL, NULL, cubrid_err_file, &status) < 0)
     {
@@ -5752,7 +5752,7 @@ ts_backup_vol_info (nvplist *req, nvplist *res, char *_dbmt_error)
   int status = EXIT_SUCCESS;
 
   dbname = nv_get_val (req, "dbname");
-  make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_BACKUPVOLINFO, PATH_MAX);
+  gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_BACKUPVOLINFO, PATH_MAX);
 
   if (uIsDatabaseActive (dbname))
     {
@@ -5946,7 +5946,7 @@ tsGetEnvironment (nvplist *req, nvplist *res, char *_dbmt_error)
   nv_add_nvp (res, "CUBRID_DATABASES", sco.szCubrid_databases);
   nv_add_nvp (res, "CUBRID_DBMT", sco.szCubrid);
   //  nv_add_nvp (res, "CUBRID_CHARSET", getenv ("CUBRID_CHARSET"));
-  make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_GETENV, PATH_MAX);
+  gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_GETENV, PATH_MAX);
 
   cmd_name[0] = '\0';
   snprintf (cmd_name, sizeof (cmd_name) - 1, "%s/%s%s", sco.szCubrid,
@@ -5972,7 +5972,7 @@ tsGetEnvironment (nvplist *req, nvplist *res, char *_dbmt_error)
       rc = ERR_WITH_MSG;
     }
 
-  make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_GET_BROKER_VERSION, PATH_MAX);
+  gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_GET_BROKER_VERSION, PATH_MAX);
   snprintf (cmd_name, sizeof (cmd_name) - 1, "%s/bin/cubrid_broker%s",
 	    sco.szCubrid, DBMT_EXE_EXT);
 
@@ -6663,7 +6663,7 @@ ts_set_backup_info (nvplist *req, nvplist *res, char *_dbmt_error)
       strcpy (_dbmt_error, autofilepath);
       return ERR_FILE_OPEN_FAIL;
     }
-  make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_SETBACKUPINFO, PATH_MAX);
+  gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_SETBACKUPINFO, PATH_MAX);
   if ((outfile = fopen (tmpfile, "w")) == NULL)
     {
       fclose (infile);
@@ -6819,7 +6819,7 @@ ts_delete_backup_info (nvplist *req, nvplist *res, char *_dbmt_error)
       strcpy (_dbmt_error, autofilepath);
       return ERR_FILE_OPEN_FAIL;
     }
-  make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_DELETEBACKUPINFO, PATH_MAX);
+  gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_DELETEBACKUPINFO, PATH_MAX);
   if ((outfile = fopen (tmpfile, "w")) == NULL)
     {
       fclose (infile);
@@ -7168,7 +7168,7 @@ ts_set_auto_add_vol (nvplist *req, nvplist *res, char *_dbmt_error)
       strcpy (_dbmt_error, auto_addvol_conf_file);
       return ERR_FILE_OPEN_FAIL;
     }
-  make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_SETAUTOADDVOL, PATH_MAX);
+  gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_SETAUTOADDVOL, PATH_MAX);
   outfile = fopen (tmpfile, "w");
   if (outfile == NULL)
     {
@@ -7282,8 +7282,8 @@ ts_get_tran_info (nvplist *req, nvplist *res, char *_dbmt_error)
       return ERR_STANDALONE_MODE;
     }
 
-  make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_GETTRANINFO, PATH_MAX);
-  make_temp_filepath (errfile, sco.dbmt_tmp_dir, "DBMT_task_err", TS_GETTRANINFO, PATH_MAX);
+  gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_GETTRANINFO, PATH_MAX);
+  gen_tempfile_path (errfile, sco.dbmt_tmp_dir, "DBMT_task_err", TS_GETTRANINFO, PATH_MAX);
 
   cubrid_cmd_name (cmd_name);
   argv[argc++] = cmd_name;
@@ -7868,7 +7868,7 @@ ts_lockdb (nvplist *req, nvplist *res, char *_dbmt_error)
       return ERR_STANDALONE_MODE;
     }
 
-  make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task_1", TS_LOCKDB, PATH_MAX);
+  gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "DBMT_task_1", TS_LOCKDB, PATH_MAX);
 
   cubrid_cmd_name (cmd_name);
   argv[argc++] = cmd_name;
@@ -7904,7 +7904,7 @@ ts_lockdb (nvplist *req, nvplist *res, char *_dbmt_error)
     }
 
   /* create file that remove line feed at existed outputfile */
-  make_temp_filepath (tmpfile2, sco.dbmt_tmp_dir, "DBMT_task_2", TS_LOCKDB, PATH_MAX);
+  gen_tempfile_path (tmpfile2, sco.dbmt_tmp_dir, "DBMT_task_2", TS_LOCKDB, PATH_MAX);
 
   outfile = fopen (tmpfile2, "w");
   if (outfile == NULL)
@@ -8560,15 +8560,15 @@ ts_trigger_operation (nvplist *req, nvplist *res, char *_dbmt_error)
     {
       if (strcmp (task, "addtrigger") == 0)
 	{
-	  make_temp_filepath (input_file, sco.dbmt_tmp_dir, "dbmt_task", TS_ADDNEWTRIGGER, PATH_MAX);
+	  gen_tempfile_path (input_file, sco.dbmt_tmp_dir, "dbmt_task", TS_ADDNEWTRIGGER, PATH_MAX);
 	}
       else if (strcmp (task, "droptrigger") == 0)
 	{
-	  make_temp_filepath (input_file, sco.dbmt_tmp_dir, "dbmt_task", TS_DROPTRIGGER, PATH_MAX);
+	  gen_tempfile_path (input_file, sco.dbmt_tmp_dir, "dbmt_task", TS_DROPTRIGGER, PATH_MAX);
 	}
       else if (strcmp (task, "altertrigger") == 0)
 	{
-	  make_temp_filepath (input_file, sco.dbmt_tmp_dir, "dbmt_task", TS_ALTERTRIGGER, PATH_MAX);
+	  gen_tempfile_path (input_file, sco.dbmt_tmp_dir, "dbmt_task", TS_ALTERTRIGGER, PATH_MAX);
 	}
     }
 
@@ -8667,7 +8667,7 @@ ts_trigger_operation (nvplist *req, nvplist *res, char *_dbmt_error)
 	}
     }
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "trigger_operation_err_tmp", TS_GETTRIGGERINFO, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "trigger_operation_err_tmp", TS_GETTRIGGERINFO, PATH_MAX);
 
   {
     const char *extra_envp[] = TRANSACTION_NO_WAIT_MODE_ENVP;
@@ -8750,7 +8750,7 @@ ts_set_autoexec_query (nvplist *req, nvplist *res, char *_dbmt_error)
       return ERR_FILE_OPEN_FAIL;
     }
 
-  make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_SET_AUTO_EXEC_QRY, PATH_MAX);
+  gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "DBMT_task", TS_SET_AUTO_EXEC_QRY, PATH_MAX);
   if ((temp_file = fopen (tmpfile, "w")) == NULL)
     {
       fclose (conf_file);
@@ -9252,7 +9252,7 @@ ts_updatestatustemplate (nvplist *cli_request, nvplist *cli_response,
       return ERR_FILE_OPEN_FAIL;
     }
 
-  make_temp_filepath (tempfilepath, sco.dbmt_tmp_dir, "statustemplate_update", TS_UPDATESTATUSTEMPLATE, PATH_MAX);
+  gen_tempfile_path (tempfilepath, sco.dbmt_tmp_dir, "statustemplate_update", TS_UPDATESTATUSTEMPLATE, PATH_MAX);
   if ((tempfile = fopen (tempfilepath, "w+")) == NULL)
     {
       if (diag_error)
@@ -9547,7 +9547,7 @@ ts_analyzecaslog (nvplist *cli_request, nvplist *cli_response,
 	}
     }
   argv[arg_index++] = NULL;
-  make_temp_filepath (diag_err_file, sco.dbmt_tmp_dir, "analyzecaslog_err", TS_ANALYZECASLOG, PATH_MAX);
+  gen_tempfile_path (diag_err_file, sco.dbmt_tmp_dir, "analyzecaslog_err", TS_ANALYZECASLOG, PATH_MAX);
 
   retval = run_child (argv, 1, NULL, NULL, diag_err_file, NULL);    /* broker_log_top */
   if (read_error_file (diag_err_file, diag_error, DBMT_ERROR_MSG_SIZE) < 0)
@@ -9573,7 +9573,7 @@ ts_analyzecaslog (nvplist *cli_request, nvplist *cli_response,
       return ERR_SYSTEM_CALL;
     }
 
-  make_temp_filepath (tmpfileanalyzeresult, sco.dbmt_tmp_dir, "analyzelog_res", TS_ANALYZECASLOG, PATH_MAX);
+  gen_tempfile_path (tmpfileanalyzeresult, sco.dbmt_tmp_dir, "analyzelog_res", TS_ANALYZECASLOG, PATH_MAX);
   fdAnalyzeResult = fopen (tmpfileanalyzeresult, "w+");
   if (fdAnalyzeResult == NULL)
     {
@@ -9588,7 +9588,7 @@ ts_analyzecaslog (nvplist *cli_request, nvplist *cli_response,
     {
       int log_init_flag, log_index;
 
-      make_temp_filepath (tmpfileT, sco.dbmt_tmp_dir, "log_top_t", TS_ANALYZECASLOG, PATH_MAX);
+      gen_tempfile_path (tmpfileT, sco.dbmt_tmp_dir, "log_top_t", TS_ANALYZECASLOG, PATH_MAX);
       rename ("./log_top.t", tmpfileT);
 
       fdT = fopen (tmpfileT, "r");
@@ -9667,8 +9667,8 @@ ts_analyzecaslog (nvplist *cli_request, nvplist *cli_response,
 #else
       th_id = getpid ();
 #endif
-      make_temp_filepath (tmpfileQ, sco.dbmt_tmp_dir, "log_top_q", TS_ANALYZECASLOG, PATH_MAX);
-      make_temp_filepath (tmpfileRes, sco.dbmt_tmp_dir, "log_top_res", TS_ANALYZECASLOG, PATH_MAX);
+      gen_tempfile_path (tmpfileQ, sco.dbmt_tmp_dir, "log_top_q", TS_ANALYZECASLOG, PATH_MAX);
+      gen_tempfile_path (tmpfileRes, sco.dbmt_tmp_dir, "log_top_res", TS_ANALYZECASLOG, PATH_MAX);
 
       rename ("./log_top.q", tmpfileQ);
       rename ("./log_top.res", tmpfileRes);
@@ -9850,8 +9850,8 @@ ts_executecasrunner (nvplist *cli_request, nvplist *cli_response,
   th_id = getpid ();
 #endif
 
-  make_temp_filepath (resfile, sco.dbmt_tmp_dir, "log_run_res", TS_EXECUTECASRUNNER, PATH_MAX);
-  make_temp_filepath (resfile2, sco.dbmt_tmp_dir, "log_run_res2", TS_EXECUTECASRUNNER, PATH_MAX);
+  gen_tempfile_path (resfile, sco.dbmt_tmp_dir, "log_run_res", TS_EXECUTECASRUNNER, PATH_MAX);
+  gen_tempfile_path (resfile2, sco.dbmt_tmp_dir, "log_run_res2", TS_EXECUTECASRUNNER, PATH_MAX);
 
   /* get right port number with broker name */
   if (cm_get_broker_conf (&uc_conf, NULL, &error) < 0)
@@ -10577,7 +10577,7 @@ cmd_heartbeat_deact (char *_dbmt_error)
   cubrid_err_file[0] = '\0';
   outputfilepath[0] = '\0';
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "heartbeat_deact_err", TS_HEARTBEAT_DEACT, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "heartbeat_deact_err", TS_HEARTBEAT_DEACT, PATH_MAX);
 
   cubrid_cmd_name (cmd_name);
   argv[argc++] = cmd_name;
@@ -10585,7 +10585,7 @@ cmd_heartbeat_deact (char *_dbmt_error)
   argv[argc++] = PRINT_CMD_DEACT;
   argv[argc++] = NULL;
 
-  make_temp_filepath (outputfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_HEARTBEAT_DEACT, PATH_MAX);
+  gen_tempfile_path (outputfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_HEARTBEAT_DEACT, PATH_MAX);
 
   if (run_child (argv, 1, NULL, outputfilepath, cubrid_err_file, NULL) < 0)
     {
@@ -10642,7 +10642,7 @@ cmd_heartbeat_act (char *_dbmt_error)
   outputfilepath[0] = '\0';
   cubrid_err_file[0] = '\0';
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "cmd_heartbeat_act_err", TS_HEARTBEAT_ACT, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "cmd_heartbeat_act_err", TS_HEARTBEAT_ACT, PATH_MAX);
 
   cubrid_cmd_name (cmd_name);
   argv[argc++] = cmd_name;
@@ -10650,7 +10650,7 @@ cmd_heartbeat_act (char *_dbmt_error)
   argv[argc++] = PRINT_CMD_ACT;
   argv[argc++] = NULL;
 
-  make_temp_filepath (outputfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_HEARTBEAT_ACT, PATH_MAX);
+  gen_tempfile_path (outputfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_HEARTBEAT_ACT, PATH_MAX);
 
   if (run_child (argv, 1, NULL, outputfilepath, cubrid_err_file, NULL) < 0)
     {
@@ -10842,7 +10842,7 @@ ts_get_standby_server_stat (nvplist *req, nvplist *res, char *_dbmt_error)
 
   memset (&stat, 0, sizeof (stat));
 
-  make_temp_filepath (output_file, sco.dbmt_tmp_dir, "dbmt_task", TS_GET_STANDBY_SERVER_STAT, PATH_MAX);
+  gen_tempfile_path (output_file, sco.dbmt_tmp_dir, "dbmt_task", TS_GET_STANDBY_SERVER_STAT, PATH_MAX);
 
   if ((dbname = nv_get_val (req, "dbname")) == NULL)
     {
@@ -11127,8 +11127,8 @@ cmd_changemode (char *dbname, char *modify, char *force,
       return ERR_STANDALONE_MODE;
     }
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "changemode_err", TS_CHANGEMODE, PATH_MAX);
-  make_temp_filepath (tmpfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_CHANGEMODE, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "changemode_err", TS_CHANGEMODE, PATH_MAX);
+  gen_tempfile_path (tmpfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_CHANGEMODE, PATH_MAX);
 
   cubrid_cmd_name (cmd_name);
   argv[argc++] = cmd_name;
@@ -11228,7 +11228,7 @@ ts_role_change (nvplist *req, nvplist *res, char *_dbmt_error)
     NULL,
   };
 
-  make_temp_filepath (cmdfile, sco.dbmt_tmp_dir, "DBMT_task", TS_ROLE_CHANGE, PATH_MAX);
+  gen_tempfile_path (cmdfile, sco.dbmt_tmp_dir, "DBMT_task", TS_ROLE_CHANGE, PATH_MAX);
 
   /* save the process info before heartbeat deact operation. */
   if (run_child (argv, 1, NULL, cmdfile, NULL, NULL) < 0)
@@ -11595,8 +11595,8 @@ ts_run_script (nvplist *req, nvplist *res, char *_dbmt_error)
       return ERR_PARAM_MISSING;
     }
 
-  make_temp_filepath (outfile, sco.dbmt_tmp_dir, "DBMT_task_out", TS_RUN_SCRIPT, PATH_MAX);
-  make_temp_filepath (errfile, sco.dbmt_tmp_dir, "DBMT_task_err", TS_RUN_SCRIPT, PATH_MAX);
+  gen_tempfile_path (outfile, sco.dbmt_tmp_dir, "DBMT_task_out", TS_RUN_SCRIPT, PATH_MAX);
+  gen_tempfile_path (errfile, sco.dbmt_tmp_dir, "DBMT_task_err", TS_RUN_SCRIPT, PATH_MAX);
 
   /* set environment that the script need to run. */
 
@@ -12026,8 +12026,8 @@ cmd_heartbeat_list (T_HA_SERVER_INFO_ALL **all_info, int get_all_dbmode,
   argv[argc++] = PRINT_CMD_LIST;
   argv[argc++] = NULL;
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "heartbeat_list_err", TS_HEARTBEAT_LIST, PATH_MAX);
-  make_temp_filepath (outputfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_HEARTBEAT_LIST, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "heartbeat_list_err", TS_HEARTBEAT_LIST, PATH_MAX);
+  gen_tempfile_path (outputfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_HEARTBEAT_LIST, PATH_MAX);
 
   if (run_child (argv, 1, NULL, outputfilepath, cubrid_err_file, NULL) < 0)
     {
@@ -14046,7 +14046,7 @@ alter_dblocation (const char *dbname, const char *new_dbpath)
 
   snprintf (dblocation_info_path, PATH_MAX - 1, "%s/%s",
 	    sco.szCubrid_databases, CUBRID_DATABASE_TXT);
-  make_temp_filepath (tmpfile_path, sco.dbmt_tmp_dir, "DBMT_util_dblocation", TS_ALTER_DB_LOC, PATH_MAX);
+  gen_tempfile_path (tmpfile_path, sco.dbmt_tmp_dir, "DBMT_util_dblocation", TS_ALTER_DB_LOC, PATH_MAX);
 
   dblocation_info = fopen (dblocation_info_path, "r");
   tmpfile = fopen (tmpfile_path, "w");
@@ -14630,8 +14630,8 @@ ts_shard_start (nvplist *req, nvplist *res, char *err_buf)
 
   sname = nv_get_val (req, "shardname");
 
-  make_temp_filepath (stdout_log_file, sco.dbmt_tmp_dir, "cmshardstart_err", TS_SHARD_START, PATH_MAX);
-  make_temp_filepath (stderr_log_file, sco.dbmt_tmp_dir, "cmshardstart2_err", TS_SHARD_START, PATH_MAX);
+  gen_tempfile_path (stdout_log_file, sco.dbmt_tmp_dir, "cmshardstart_err", TS_SHARD_START, PATH_MAX);
+  gen_tempfile_path (stderr_log_file, sco.dbmt_tmp_dir, "cmshardstart2_err", TS_SHARD_START, PATH_MAX);
 
   cmd_name[0] = '\0';
 #if !defined (DO_NOT_USE_CUBRIDENV)
@@ -14694,8 +14694,8 @@ ts_shard_stop (nvplist *req, nvplist *res, char *err_buf)
 
   sname = nv_get_val (req, "shardname");
 
-  make_temp_filepath (stdout_log_file, sco.dbmt_tmp_dir, "cmshardstop_err", TS_SHARD_STOP, PATH_MAX);
-  make_temp_filepath (stderr_log_file, sco.dbmt_tmp_dir, "cmshardstop2_err", TS_SHARD_STOP, PATH_MAX);
+  gen_tempfile_path (stdout_log_file, sco.dbmt_tmp_dir, "cmshardstop_err", TS_SHARD_STOP, PATH_MAX);
+  gen_tempfile_path (stderr_log_file, sco.dbmt_tmp_dir, "cmshardstop2_err", TS_SHARD_STOP, PATH_MAX);
 
   cmd_name[0] = '\0';
 #if !defined (DO_NOT_USE_CUBRIDENV)
@@ -14853,8 +14853,8 @@ ts_broker_changer (nvplist *req, nvplist *res, char *_dbmt_error)
       return ERR_PARAM_MISSING;
     }
 
-  make_temp_filepath (stdout_log_file, sco.dbmt_tmp_dir, "cmbrokerchanger_out", TS_BROKER_CHANGER, PATH_MAX);
-  make_temp_filepath (stderr_log_file, sco.dbmt_tmp_dir, "cmbrokerchanger_err", TS_BROKER_CHANGER, PATH_MAX);
+  gen_tempfile_path (stdout_log_file, sco.dbmt_tmp_dir, "cmbrokerchanger_out", TS_BROKER_CHANGER, PATH_MAX);
+  gen_tempfile_path (stderr_log_file, sco.dbmt_tmp_dir, "cmbrokerchanger_err", TS_BROKER_CHANGER, PATH_MAX);
 
   cmd_name[0] = '\0';
 #if !defined (DO_NOT_USE_CUBRIDENV)
@@ -15241,8 +15241,8 @@ ts_ha_start (nvplist *req, nvplist *res, char *_dbmt_error)
   // dbname is optional.
   dbname = nv_get_val (req, "dbname");
 
-  make_temp_filepath (stdout_log_file, sco.dbmt_tmp_dir, "cmhastart_out", TS_HA_START, PATH_MAX);
-  make_temp_filepath (stderr_log_file, sco.dbmt_tmp_dir, "cmhastart_err", TS_HA_START, PATH_MAX);
+  gen_tempfile_path (stdout_log_file, sco.dbmt_tmp_dir, "cmhastart_out", TS_HA_START, PATH_MAX);
+  gen_tempfile_path (stderr_log_file, sco.dbmt_tmp_dir, "cmhastart_err", TS_HA_START, PATH_MAX);
 
   cmd_name[0] = '\0';
 #if !defined (DO_NOT_USE_CUBRIDENV)
@@ -15302,8 +15302,8 @@ ts_ha_stop (nvplist *req, nvplist *res, char *_dbmt_error)
   // dbname is optional.
   dbname = nv_get_val (req, "dbname");
 
-  make_temp_filepath (stdout_log_file, sco.dbmt_tmp_dir, "cmhastop_out", TS_HA_STOP, PATH_MAX);
-  make_temp_filepath (stderr_log_file, sco.dbmt_tmp_dir, "cmhastop_err", TS_HA_STOP, PATH_MAX);
+  gen_tempfile_path (stdout_log_file, sco.dbmt_tmp_dir, "cmhastop_out", TS_HA_STOP, PATH_MAX);
+  gen_tempfile_path (stderr_log_file, sco.dbmt_tmp_dir, "cmhastop_err", TS_HA_STOP, PATH_MAX);
 
   cmd_name[0] = '\0';
 #if !defined (DO_NOT_USE_CUBRIDENV)
@@ -15358,8 +15358,8 @@ ts_ha_status (nvplist *req, nvplist *res, char *_dbmt_error)
   int ret_val;
 
 
-  make_temp_filepath (stdout_log_file, sco.dbmt_tmp_dir, "cmhastatus_out", TS_HA_STATUS, PATH_MAX);
-  make_temp_filepath (stderr_log_file, sco.dbmt_tmp_dir, "cmhastatus_err", TS_HA_STATUS, PATH_MAX);
+  gen_tempfile_path (stdout_log_file, sco.dbmt_tmp_dir, "cmhastatus_out", TS_HA_STATUS, PATH_MAX);
+  gen_tempfile_path (stderr_log_file, sco.dbmt_tmp_dir, "cmhastatus_err", TS_HA_STATUS, PATH_MAX);
 
   cmd_name[0] = '\0';
 #if !defined (DO_NOT_USE_CUBRIDENV)
@@ -15424,8 +15424,8 @@ ts_ha_reload (nvplist *req, nvplist *res, char *_dbmt_error)
   int ret_val;
 
 
-  make_temp_filepath (stdout_log_file, sco.dbmt_tmp_dir, "cmhareload_out", TS_HA_RELOAD, PATH_MAX);
-  make_temp_filepath (stderr_log_file, sco.dbmt_tmp_dir, "cmhareload_err", TS_HA_RELOAD, PATH_MAX);
+  gen_tempfile_path (stdout_log_file, sco.dbmt_tmp_dir, "cmhareload_out", TS_HA_RELOAD, PATH_MAX);
+  gen_tempfile_path (stderr_log_file, sco.dbmt_tmp_dir, "cmhareload_err", TS_HA_RELOAD, PATH_MAX);
 
   cmd_name[0] = '\0';
 #if !defined (DO_NOT_USE_CUBRIDENV)
@@ -15505,8 +15505,8 @@ ts_ha_copylogdb (nvplist *req, nvplist *res, char *_dbmt_error)
       return ERR_PARAM_MISSING;
     }
 
-  make_temp_filepath (stdout_log_file, sco.dbmt_tmp_dir, "cmhacopylogdb_out", TS_HA_COPYLOGDB, PATH_MAX);
-  make_temp_filepath (stderr_log_file, sco.dbmt_tmp_dir, "cmhacopylogdb_err", TS_HA_COPYLOGDB, PATH_MAX);
+  gen_tempfile_path (stdout_log_file, sco.dbmt_tmp_dir, "cmhacopylogdb_out", TS_HA_COPYLOGDB, PATH_MAX);
+  gen_tempfile_path (stderr_log_file, sco.dbmt_tmp_dir, "cmhacopylogdb_err", TS_HA_COPYLOGDB, PATH_MAX);
 
   cmd_name[0] = '\0';
 #if !defined (DO_NOT_USE_CUBRIDENV)
@@ -15598,8 +15598,8 @@ ts_ha_applylogdb (nvplist *req, nvplist *res, char *_dbmt_error)
       return ERR_PARAM_MISSING;
     }
 
-  make_temp_filepath (stdout_log_file, sco.dbmt_tmp_dir, "cmhacopylogdb_out", TS_HA_COPYLOGDB, PATH_MAX);
-  make_temp_filepath (stderr_log_file, sco.dbmt_tmp_dir, "cmhacopylogdb_err", TS_HA_COPYLOGDB, PATH_MAX);
+  gen_tempfile_path (stdout_log_file, sco.dbmt_tmp_dir, "cmhacopylogdb_out", TS_HA_COPYLOGDB, PATH_MAX);
+  gen_tempfile_path (stderr_log_file, sco.dbmt_tmp_dir, "cmhacopylogdb_err", TS_HA_COPYLOGDB, PATH_MAX);
 
   cmd_name[0] = '\0';
 #if !defined (DO_NOT_USE_CUBRIDENV)
@@ -16099,7 +16099,7 @@ ts_monitor_process (nvplist *req, nvplist *res, char *_dbmt_error)
   FILE *fin;
   int ch;
 
-  make_temp_filepath (pid_file, sco.dbmt_tmp_dir, "monitor_process_tmp", TS_MONITOR_PROCESS, PATH_MAX);
+  gen_tempfile_path (pid_file, sco.dbmt_tmp_dir, "monitor_process_tmp", TS_MONITOR_PROCESS, PATH_MAX);
   fin = fopen (pid_file, "w+");
 
   i = 0;
@@ -17037,7 +17037,7 @@ is_ha_updates_disabled (char *dbname, char *_dbmt_error)
   int exit_code = 0;
 
   snprintf (cmd_name, sizeof (cmd_name), "%s/%s%s", sco.szCubrid, CUBRID_DIR_BIN, "cubrid");
-  make_temp_filepath (outfile, sco.dbmt_tmp_dir, "DBMT_task", TS_COMPACTDB, PATH_MAX);
+  gen_tempfile_path (outfile, sco.dbmt_tmp_dir, "DBMT_task", TS_COMPACTDB, PATH_MAX);
 
   argv[argc++] = cmd_name;
   argv[argc++] = "heartbeat";

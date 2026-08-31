@@ -128,11 +128,11 @@ cmd_csql (char *dbname, char *uid, char *passwd, T_CUBRID_MODE mode,
   argv[argc++] = NULL;
 
 #if !defined (DO_NOT_USE_CUBRIDENV)
-  make_temp_filepath (out_file, sco.szCubrid, "DBMT_util", TS_CSQL_CMD, PATH_MAX);
+  gen_tempfile_path (out_file, sco.szCubrid, "DBMT_util", TS_CSQL_CMD, PATH_MAX);
 #else
-  make_temp_filepath (out_file, CUBRID_TMPDIR, "DBMT_util", TS_CSQL_CMD, PATH_MAX);
+  gen_tempfile_path (out_file, CUBRID_TMPDIR, "DBMT_util", TS_CSQL_CMD, PATH_MAX);
 #endif
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "cmd_csql_err", TS_CSQL_CMD, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "cmd_csql_err", TS_CSQL_CMD, PATH_MAX);
 
   {
     const char *extra_envp[] = TRANSACTION_NO_WAIT_MODE_ENVP;
@@ -166,7 +166,7 @@ void find_and_parse_cub_admin_version (int &major_version, int &minor_version, c
     }
 
   cubrid_cmd_name (cmd_name);
-  make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "cub_admin_version", TS_GET_SERVER_VERSION, PATH_MAX);
+  gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "cub_admin_version", TS_GET_SERVER_VERSION, PATH_MAX);
   argv[0] = cmd_name;
   argv[1] = "--version";
   argv[2] = NULL;
@@ -246,7 +246,7 @@ cmd_spacedb (const char *dbname, T_CUBRID_MODE mode)
       res = new SpaceDbResultNewFormat();
     }
 
-  make_temp_filepath (out_file, sco.dbmt_tmp_dir, "DBMT_util", TS_DB_SPACE_INFO, PATH_MAX);
+  gen_tempfile_path (out_file, sco.dbmt_tmp_dir, "DBMT_util", TS_DB_SPACE_INFO, PATH_MAX);
   cubrid_cmd_name (cmd_name);
   argv[argc++] = cmd_name;
   argv[argc++] = UTIL_OPTION_SPACEDB;
@@ -259,7 +259,7 @@ cmd_spacedb (const char *dbname, T_CUBRID_MODE mode)
   argv[argc++] = "-p";
   argv[argc++] = NULL;
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "cmd_spacedb_err", TS_DB_SPACE_INFO, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "cmd_spacedb_err", TS_DB_SPACE_INFO, PATH_MAX);
   run_child (argv, 1, NULL, NULL, cubrid_err_file, NULL);    /* spacedb */
   read_error_file (cubrid_err_file, err_message, ERR_MSG_SIZE);
   res->set_err_msg (err_message);
@@ -290,8 +290,8 @@ cmd_start_server (char *dbname, char *err_buf, int err_buf_size)
 #endif
 
   cmd_start_master ();
-  make_temp_filepath (stdout_log_file, sco.dbmt_tmp_dir, "cmserverstart", TS_CMSERVERSTART, PATH_MAX);
-  make_temp_filepath (stderr_log_file, sco.dbmt_tmp_dir, "cmserverstart2", TS_CMSERVERSTART, PATH_MAX);
+  gen_tempfile_path (stdout_log_file, sco.dbmt_tmp_dir, "cmserverstart", TS_CMSERVERSTART, PATH_MAX);
+  gen_tempfile_path (stderr_log_file, sco.dbmt_tmp_dir, "cmserverstart2", TS_CMSERVERSTART, PATH_MAX);
 
   cmd_name[0] = '\0';
 #if !defined (DO_NOT_USE_CUBRIDENV)

@@ -1299,7 +1299,7 @@ int ext_set_autoexec_query (Json::Value &request, Json::Value &response)
     }
 
   // open a temp file for new auto query config.
-  make_temp_filepath (tmp_conf_file, sco.dbmt_tmp_dir, "DBMT_task", TS_EXT_SET_AUTO_EXEC_QRY, PATH_MAX);
+  gen_tempfile_path (tmp_conf_file, sco.dbmt_tmp_dir, "DBMT_task", TS_EXT_SET_AUTO_EXEC_QRY, PATH_MAX);
   tmp_file.open (tmp_conf_file, ios::out);
   if (!tmp_file.good())
     {
@@ -1568,8 +1568,8 @@ int ext_get_ha_apply_info (Json::Value &request, Json::Value &response)
   JSON_FIND_V (request, "dbname",
                build_server_header (response, ERR_PARAM_MISSING, "Parameter(remotehostname) missing in the request"));
 
-  make_temp_filepath (stdout_log_file, sco.dbmt_tmp_dir, "cmhastop_out", TS_HA_STOP, PATH_MAX);
-  make_temp_filepath (stderr_log_file, sco.dbmt_tmp_dir, "cmhastop_err", TS_HA_STOP, PATH_MAX);
+  gen_tempfile_path (stdout_log_file, sco.dbmt_tmp_dir, "cmhastop_out", TS_HA_STOP, PATH_MAX);
+  gen_tempfile_path (stderr_log_file, sco.dbmt_tmp_dir, "cmhastop_err", TS_HA_STOP, PATH_MAX);
 
   copy_log_path = request["copylogpath"].asString();
   remote_host_name = request["remotehostname"].asString();
