@@ -4286,3 +4286,30 @@ is_positive_number (const char *str)
 
   return (int) num;
 }
+
+int
+gen_tempfile_path (char *tempfile, const char *tempdir, const char *prefix, int task_code, size_t size)
+{
+  static atomic_counter_t seq = 0;
+  time_t now;
+  long tid;
+
+  if (tempfile == NULL || tempdir == NULL || size < 1)
+    {
+      return -1;
+    }
+
+#if defined (WINDOWS)
+  tid = GetCurrentThreadId ();
+#else
+  tid = pthread_self ();
+#endif
+
+  now = time (NULL);
+  ATOMIC_FETCH_ADD1 (seq);
+
+  snprintf (tempfile, size - 1, "%s/%s_%03d_%ld_%ld_%ld", tempdir, prefix ? prefix : "", task_code,
+           (long) now, tid, seq);
+
+  return 0;
+}

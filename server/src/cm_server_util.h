@@ -180,6 +180,7 @@ int write_to_socket (SOCKET fd, const char *buf, int size);
 int is_cmserver_process (int pid, const char *module_name);
 int make_default_env (void);
 int is_positive_number (const char *str);
+int gen_tempfile_path (char *tempfile, const char *tempdir, const char *prefix, int task_code, size_t size);
 
 #if defined(WINDOWS)
 void remove_end_of_dir_ch (char *path);
