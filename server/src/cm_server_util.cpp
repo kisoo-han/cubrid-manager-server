@@ -4293,6 +4293,7 @@ gen_tempfile_path (char *tempfile, const char *tempdir, const char *prefix, int 
   static atomic_counter_t seq = 0;
   time_t now;
   long tid;
+  int ret = -1;
 
   if (tempfile == NULL || tempdir == NULL || size < 1)
     {
@@ -4308,8 +4309,8 @@ gen_tempfile_path (char *tempfile, const char *tempdir, const char *prefix, int 
   now = time (NULL);
   ATOMIC_FETCH_ADD1 (seq);
 
-  snprintf (tempfile, size - 1, "%s/%s_%03d_%ld_%ld_%ld", tempdir, prefix ? prefix : "", task_code,
+  ret = snprintf (tempfile, size - 1, "%s/%s_%03d_%ld_%ld_%ld", tempdir, prefix ? prefix : "", task_code,
            (long) now, tid, seq);
 
-  return 0;
+  return (ret > 0 && ret < (size - 1)) ? 0 : -1;
 }
