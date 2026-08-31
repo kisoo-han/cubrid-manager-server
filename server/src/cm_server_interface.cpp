@@ -440,6 +440,14 @@ static const char *async_capable_tasks[] =
   "restoredb",
   "backupdb",
   "addvoldb",
+  "broker_start",
+  "startbroker",
+  "broker_stop",
+  "stopbroker",
+  "deletedb",
+  "ha_start",
+  "ha_stop",
+  "ha_reload",
   NULL
 };
 
