@@ -40,6 +40,7 @@
 #include "cm_server_extend_interface.h"
 #include "cm_log.h"
 #include "cm_mon_stat.h"
+#include "cm_job_task.h"
 
 using namespace std;
 
@@ -1274,6 +1275,21 @@ cub_check_server_status (Json::Value &request, Json::Value &response)
       db_busy.append (d);
     }
   response["db-running-async"] = db_busy;
+
+  Json::Value statdump_list;
+  vector <T_STATDUMPD_INFO> statdumpd_info = get_statdump_daemon_list ();
+  for (vector <T_STATDUMPD_INFO>::iterator itor = statdumpd_info.begin ();
+       itor != statdumpd_info.end (); ++itor)
+    {
+      Json::Value s;
+      s["db_name"] = itor->db_name;
+      s["interval"] = itor->interval;
+      s["pid"] = itor->pid;
+      s["status"] = itor->status;
+      s["started"] = itor->started;
+      statdump_list.append (s);
+    }
+  response["statdump-daemon"] = statdump_list;
 
   return build_server_header (response, ERR_NO_ERROR, "none");
 }

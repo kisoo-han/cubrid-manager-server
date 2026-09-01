@@ -223,6 +223,8 @@ typedef struct
  {
    int pid;
    int status;
+   int interval;
+   time_t started;
  } T_STATDUMP_STAT;
 
 typedef struct
@@ -16589,6 +16591,8 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
      return -1;
    }
 
+  interval = atoi (interval_str);
+
   mutex_lock (*_statdumpd_mutex ());
 
   if (statdump_daemon.size () >= MAX_STATDUMP_PROC)
@@ -16601,6 +16605,8 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   T_STATDUMP_STAT reserved;
   reserved.status = STATD_STARTING;
   reserved.pid = -1;
+  reserved.interval = interval;
+  reserved.started = 0;
   pair <map <string, T_STATDUMP_STAT>::iterator, bool> inserted =
     statdump_daemon.insert (make_pair (string (db_name), reserved));
 
@@ -16612,7 +16618,6 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
       return -1;
     }
 
-  interval = atoi (interval_str);
   cubrid_cmd_name (path);
 
   argv[argc++] = path;
@@ -16644,6 +16649,7 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
 
   statdump_daemon[db_name].status = STATD_RUNNING;
   statdump_daemon[db_name].pid = ret_val;
+  statdump_daemon[db_name].started = time (NULL);
 
   mutex_unlock (*_statdumpd_mutex ());
 
@@ -16711,6 +16717,31 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
           nv_add_nvp (res, "Linux_error", strerror (errno));
         }
    }
+
+  if (ret_val >= 0)
+    {
+      int reap_status = 0;
+      int reaped = 0;
+      int tries;
+
+      for (tries = 0; tries < 20; tries++)
+        {
+          pid_t w = waitpid (pid, &reap_status, WNOHANG);
+          if (w == pid || (w < 0 && errno == ECHILD))
+            {
+              reaped = 1;
+              break;
+            }
+          usleep (100 * 1000);
+        }
+
+      if (!reaped)
+        {
+          /* still hanging around somehow: force it, then reap it for good */
+          kill (pid, SIGKILL);
+          waitpid (pid, &reap_status, 0);
+        }
+    }
 #endif
 
   mutex_lock (*_statdumpd_mutex ());
@@ -16742,6 +16773,55 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
 
   nv_update_val (res, "status", "success");
   return ret_val;
+}
+
+vector <T_STATDUMPD_INFO>
+get_statdump_daemon_list (void)
+{
+  vector <T_STATDUMPD_INFO> result;
+
+  mutex_lock (*_statdumpd_mutex ());
+
+  result.reserve (statdump_daemon.size ());
+  for (map <string, T_STATDUMP_STAT>::const_iterator itor = statdump_daemon.begin ();
+       itor != statdump_daemon.end (); ++itor)
+    {
+      T_STATDUMPD_INFO info;
+      info.db_name = itor->first;
+      info.interval = itor->second.interval;
+      info.pid = itor->second.pid;
+      switch (itor->second.status)
+        {
+        case STATD_STARTING:
+          info.status = "starting";
+          break;
+        case STATD_RUNNING:
+          info.status = "running";
+          break;
+        case STATD_STOPPING:
+          info.status = "stopping";
+          break;
+        default:
+          info.status = "unknown";
+          break;
+        }
+      if (itor->second.started > 0)
+        {
+          char started_buf[64];
+          time_to_str (itor->second.started, "%04d-%02d-%02d %02d:%02d:%02d",
+                       started_buf, TIME_STR_FMT_DATE_TIME);
+          info.started = started_buf;
+        }
+      else
+        {
+          info.started = "";
+        }
+      result.push_back (info);
+    }
+
+  mutex_unlock (*_statdumpd_mutex ());
+
+  return result;
 }
 
 
