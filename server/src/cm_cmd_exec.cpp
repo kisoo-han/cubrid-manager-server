@@ -220,7 +220,6 @@ GeneralSpacedbResult *
 cmd_spacedb (const char *dbname, T_CUBRID_MODE mode)
 {
   GeneralSpacedbResult *res = NULL;
-  int minor_version, major_version;
   char out_file[PATH_MAX];
   char cubrid_err_file[PATH_MAX];
   char cmd_name[CUBRID_CMD_NAME_LEN];
@@ -232,12 +231,9 @@ cmd_spacedb (const char *dbname, T_CUBRID_MODE mode)
   if (IS_INVALID_CUBRID_VERS_MAJOR (cubrid_version_major))
     {
       LOG_ERROR ("Invalid CUBRID Engine Version: %d.%d", cubrid_version_major, cubrid_version_minor);
-      find_and_parse_cub_admin_version (major_version, minor_version, cubrid_version_build, sizeof (cubrid_version_build));
-      cubrid_version_major = major_version;
-      cubrid_version_minor = minor_version;
     }
 
-  if (cubrid_version_major < 10 || (cubrid_version_minor == 10 && cubrid_version_minor == 0))
+  if (cubrid_version_major < 10 || (cubrid_version_major == 10 && cubrid_version_minor == 0))
     {
       res = new SpaceDbResultOldFormat();
     }
