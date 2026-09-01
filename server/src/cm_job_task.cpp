@@ -16581,8 +16581,17 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   int argc = 0;
   char note [20];
   int status = EXIT_SUCCESS;
+  T_DB_SERVICE_MODE db_mode;
 
-  db_name = nv_get_val (req, "_DBNAME");
+  db_name = nv_get_val (req, "dbname");
+  db_mode = uDatabaseMode (db_name, NULL);
+
+  if (db_mode != DB_SERVICE_MODE_CS)
+    {
+      snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "%s", db_name);
+      return ERR_DB_INACTIVE;
+    }
+
   interval_str = nv_get_val (req, "interval");
   if (!interval_str || !db_name)
    {
@@ -16670,8 +16679,16 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   int pid;
   char cmd [1024];
   int ret;
+  T_DB_SERVICE_MODE db_mode;
 
-  db_name = nv_get_val (req, "_DBNAME");
+  db_name = nv_get_val (req, "dbname");
+
+  db_mode = uDatabaseMode (db_name, NULL);
+  if (db_mode != DB_SERVICE_MODE_CS)
+    {
+      snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "%s", db_name);
+      return ERR_DB_INACTIVE;
+    }
 
   mutex_lock (*_statdumpd_mutex ());
 
