@@ -221,10 +221,11 @@ typedef struct
 #define MAX_STATDUMP_PROC 16
  typedef struct
  {
-   int pid;
+   int pid;         /* the dispatcher pid run_child_env () returned */
    int status;
    int interval;
    time_t started;
+   int worker_pid;  /* pid of the dispatcher's own worker child */
  } T_STATDUMP_STAT;
 
 typedef struct
@@ -16570,6 +16571,165 @@ _statdumpd_mutex (void)
   return &holder.m;
 }
 
+#if defined (WINDOWS)
+/*
+ * _find_statdumpd_worker_pid () - find dispatcher_pid's first child (the
+ * actual "cubrid statdump" worker
+ */
+static int
+_find_statdumpd_worker_pid (int dispatcher_pid)
+{
+  int tries;
+
+  for (tries = 0; tries < 20; tries++)
+    {
+      HANDLE snap = CreateToolhelp32Snapshot (TH32CS_SNAPPROCESS, 0);
+      if (snap != INVALID_HANDLE_VALUE)
+        {
+          PROCESSENTRY32 pe32;
+          pe32.dwSize = sizeof (pe32);
+          if (Process32First (snap, &pe32))
+            {
+              do
+                {
+                  if ((int) pe32.th32ParentProcessID == dispatcher_pid)
+                    {
+                      int child_pid = (int) pe32.th32ProcessID;
+                      CloseHandle (snap);
+                      return child_pid;
+                    }
+                }
+              while (Process32Next (snap, &pe32));
+            }
+          CloseHandle (snap);
+        }
+      Sleep (100);
+    }
+
+  return -1;
+}
+
+/*
+ * _statdump_pid_is_alive () - true if pid is still a live process.
+ */
+static int
+_statdump_pid_is_alive (int pid)
+{
+  HANDLE h;
+  DWORD exit_code;
+  int alive;
+
+  h = OpenProcess (PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD) pid);
+  if (h == NULL)
+    {
+      return 0;    /* no such process */
+    }
+
+  alive = (GetExitCodeProcess (h, &exit_code) && exit_code == STILL_ACTIVE);
+  CloseHandle (h);
+  return alive;
+}
+#else
+static int
+_find_statdumpd_worker_pid (int dispatcher_pid)
+{
+  char cmd[128];
+  int tries;
+
+  snprintf (cmd, sizeof (cmd), "/bin/ps -o pid= --ppid %d 2>/dev/null", dispatcher_pid);
+
+  for (tries = 0; tries < 20; tries++)
+    {
+      FILE *fp = popen (cmd, "r");
+      if (fp != NULL)
+        {
+          int child_pid = -1;
+          int n = fscanf (fp, "%d", &child_pid);
+          pclose (fp);
+          if (n == 1 && child_pid > 0)
+            {
+              return child_pid;
+            }
+        }
+      usleep (100 * 1000);
+    }
+
+  return -1;
+}
+
+/*
+ * _statdump_pid_is_alive () - true if pid still exists as a live (i.e.
+ * not merely un-reaped) process.
+ */
+static int
+_statdump_pid_is_alive (int pid)
+{
+  char path[64];
+  char buf[256];
+  FILE *fp;
+
+  if (pid <= 0)
+    {
+      return 0;
+    }
+
+  snprintf (path, sizeof (path), "/proc/%d/stat", pid);
+  fp = fopen (path, "r");
+  if (fp != NULL)
+    {
+      char state = '\0';
+
+      if (fgets (buf, sizeof (buf), fp) != NULL)
+        {
+          char *rparen = strrchr (buf, ')');
+          if (rparen != NULL)
+            {
+              sscanf (rparen + 2, " %c", &state);
+            }
+        }
+      fclose (fp);
+
+      if (state != '\0')
+        {
+          return (state != 'Z');
+        }
+    }
+
+  if (kill ((pid_t) pid, 0) == 0)
+    {
+      return 1;
+    }
+  return (errno == EPERM) ? 1 : 0;
+}
+#endif
+
+/*
+ * _reap_dead_statdump_entries () - drop any statdump_daemon entry whose
+ * *worker* process has died out-of-band
+ */
+static void
+_reap_dead_statdump_entries (void)
+{
+  map <string, T_STATDUMP_STAT>::iterator itor = statdump_daemon.begin ();
+
+  while (itor != statdump_daemon.end ())
+    {
+      if (itor->second.status == STATD_RUNNING)
+        {
+          int check_pid = (itor->second.worker_pid > 0) ? itor->second.worker_pid : itor->second.pid;
+
+          if (!_statdump_pid_is_alive (check_pid))
+            {
+              map <string, T_STATDUMP_STAT>::iterator to_erase = itor;
+              ++itor;
+              statdump_daemon.erase (to_erase);
+              continue;
+            }
+        }
+      ++itor;
+    }
+}
+
 int
 ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
 {
@@ -16604,6 +16764,8 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
 
   mutex_lock (*_statdumpd_mutex ());
 
+  _reap_dead_statdump_entries ();
+
   if (statdump_daemon.size () >= MAX_STATDUMP_PROC)
     {
       mutex_unlock (*_statdumpd_mutex ());
@@ -16616,6 +16778,7 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   reserved.pid = -1;
   reserved.interval = interval;
   reserved.started = 0;
+  reserved.worker_pid = -1;
   pair <map <string, T_STATDUMP_STAT>::iterator, bool> inserted =
     statdump_daemon.insert (make_pair (string (db_name), reserved));
 
@@ -16637,9 +16800,18 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc++] = NULL;
 
 #if defined (WINDOWS)
-  ret_val = run_child (argv, 0, NULL, NULL, NULL, NULL);
+  ret_val = run_child_env (argv, 0, NULL, NULL, NULL, NULL);
 #else
-  ret_val = run_child (argv, 0, NULL, "/dev/null", "/dev/null", &status);
+  {
+    /*
+     * run_child_env ()'s stdout_file/stderr_file are char *, not
+     * const char * (unlike run_child ()'s)
+     */
+    char devnull_out[] = "/dev/null";
+    char devnull_err[] = "/dev/null";
+
+    ret_val = run_child_env (argv, 0, NULL, devnull_out, devnull_err, &status);
+  }
 #endif
 
   mutex_lock (*_statdumpd_mutex ());
@@ -16662,9 +16834,23 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
 
   mutex_unlock (*_statdumpd_mutex ());
 
-  nv_update_val (res, "note", db_name);
-  nv_update_val (res, "status", "success");
-  nv_add_nvp_int (res, "pid", ret_val);
+  {
+    int worker_pid = _find_statdumpd_worker_pid (ret_val);
+
+    mutex_lock (*_statdumpd_mutex ());
+
+    map <string, T_STATDUMP_STAT>::iterator worker_itor = statdump_daemon.find (db_name);
+    if (worker_itor != statdump_daemon.end () && worker_itor->second.pid == ret_val)
+      {
+        worker_itor->second.worker_pid = worker_pid;
+      }
+
+    mutex_unlock (*_statdumpd_mutex ());
+
+    nv_update_val (res, "note", db_name);
+    nv_update_val (res, "status", "success");
+    nv_add_nvp_int (res, "pid", (worker_pid > 0) ? worker_pid : ret_val);
+  }
 
   return 0;
 }
@@ -16677,6 +16863,7 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   int ret_val = ERR_NO_ERROR;
   char *db_name;
   int pid;
+  int worker_pid;
   char cmd [1024];
   int ret;
   T_DB_SERVICE_MODE db_mode;
@@ -16703,6 +16890,7 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
    }
 
   pid = itor->second.pid;
+  worker_pid = itor->second.worker_pid;
   itor->second.status = STATD_STOPPING;
 
   mutex_unlock (*_statdumpd_mutex ());
@@ -16710,9 +16898,17 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   nv_update_val (res, "note", db_name);
 
 #if defined (WINDOWS)
+  /* /T kills pid's whole process tree, worker included, in one shot */
   sprintf (cmd, "taskkill /T /F /PID %d", pid);
 #else
-  sprintf (cmd, "/bin/ps -o pid --ppid %d | grep -v PID | xargs kill", pid);
+  if (worker_pid > 0)
+    {
+      sprintf (cmd, "kill %d", worker_pid);
+    }
+  else
+    {
+      sprintf (cmd, "/bin/ps -o pid --ppid %d | grep -v PID | xargs kill", pid);
+    }
 #endif
 
   ret_val = system (cmd);
@@ -16737,27 +16933,7 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
 
   if (ret_val >= 0)
     {
-      int reap_status = 0;
-      int reaped = 0;
-      int tries;
-
-      for (tries = 0; tries < 20; tries++)
-        {
-          pid_t w = waitpid (pid, &reap_status, WNOHANG);
-          if (w == pid || (w < 0 && errno == ECHILD))
-            {
-              reaped = 1;
-              break;
-            }
-          usleep (100 * 1000);
-        }
-
-      if (!reaped)
-        {
-          /* still hanging around somehow: force it, then reap it for good */
-          kill (pid, SIGKILL);
-          waitpid (pid, &reap_status, 0);
-        }
+      kill (pid, SIGKILL);
     }
 #endif
 
@@ -16799,6 +16975,8 @@ get_statdump_daemon_list (void)
 
   mutex_lock (*_statdumpd_mutex ());
 
+  _reap_dead_statdump_entries ();
+
   result.reserve (statdump_daemon.size ());
   for (map <string, T_STATDUMP_STAT>::const_iterator itor = statdump_daemon.begin ();
        itor != statdump_daemon.end (); ++itor)
@@ -16806,7 +16984,7 @@ get_statdump_daemon_list (void)
       T_STATDUMPD_INFO info;
       info.db_name = itor->first;
       info.interval = itor->second.interval;
-      info.pid = itor->second.pid;
+      info.pid = (itor->second.worker_pid > 0) ? itor->second.worker_pid : itor->second.pid;
       switch (itor->second.status)
         {
         case STATD_STARTING:
