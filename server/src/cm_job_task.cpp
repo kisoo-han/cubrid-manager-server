@@ -80,7 +80,9 @@
 #endif
 
 #include <list>
+#include <map>
 #include <string>
+#include <utility>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -220,7 +222,6 @@ typedef struct
  typedef struct
  {
    int pid;
-   char dbname [DB_NAME_LEN];
    int status;
  } T_STATDUMP_STAT;
 
@@ -231,10 +232,14 @@ typedef struct
   int len;
 } TS_SQL_INFO;
 
- static T_STATDUMP_STAT *statdump_daemon = NULL;
+/*
+ * statdump_daemon - one entry per database, dbname is the map key
+ */
+map <string, T_STATDUMP_STAT> statdump_daemon;
 
- #define	STATD_IDLE	0
- #define	STATD_RUNNING	1
+#define	STATD_STARTING	0
+#define	STATD_RUNNING	1
+#define	STATD_STOPPING	2
 
 
 #if defined(WINDOWS)
@@ -351,9 +356,6 @@ static int _is_default_cert (char *_dbmt_error);
 static int _is_exist_default_backup_cert (char *_dbmt_error);
 static int _backup_cert (char *_dbmt_error);
 static int _recover_cert (char *_dbmt_error);
-
-static int find_statdumpd_info (char *dbname);
-static int find_new_statdumpd_info ();
 
 static int get_sql_info (char *dbmt_file, int *file_size);
 static int get_sql_text (char *tmpfile, char *query_p, TS_SQL_INFO *qry_info, int query_file_size);
@@ -16541,6 +16543,31 @@ release_src:
   return ret_val;
 }
 
+/*
+ * _statdumpd_mutex () - the lock guarding statdump_daemon (insertion,
+ * lookup, and every field of every entry).
+ */
+static mutex_t *
+_statdumpd_mutex (void)
+{
+  struct statdumpd_mutex_holder
+  {
+    mutex_t m;
+
+    statdumpd_mutex_holder (void)
+    {
+      mutex_init (m);
+    }
+    ~statdumpd_mutex_holder (void)
+    {
+      mutex_destory (m);
+    }
+  };
+  static statdumpd_mutex_holder holder;
+
+  return &holder.m;
+}
+
 int
 ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
 {
@@ -16551,7 +16578,6 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   char path [512];
   int argc = 0;
   char note [20];
-  int slot = -1;
   int status = EXIT_SUCCESS;
 
   db_name = nv_get_val (req, "_DBNAME");
@@ -16563,19 +16589,29 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
      return -1;
    }
 
-  if (find_statdumpd_info (db_name) >= 0)
+  mutex_lock (*_statdumpd_mutex ());
+
+  if (statdump_daemon.size () >= MAX_STATDUMP_PROC)
+    {
+      mutex_unlock (*_statdumpd_mutex ());
+      nv_update_val (res, "note", "too many concurrent statdump processes");
+      return -1;
+    }
+
+  T_STATDUMP_STAT reserved;
+  reserved.status = STATD_STARTING;
+  reserved.pid = -1;
+  pair <map <string, T_STATDUMP_STAT>::iterator, bool> inserted =
+    statdump_daemon.insert (make_pair (string (db_name), reserved));
+
+  mutex_unlock (*_statdumpd_mutex ());
+
+  if (!inserted.second)
     {
       nv_update_val (res, "note", "already running");
       return -1;
     }
 
-  slot = find_new_statdumpd_info ();
-  if (slot < 0)
-    {
-      nv_update_val (res, "note", "memory allocation error");
-      return -1;
-    }
-  strcpy (statdump_daemon[slot].dbname, db_name);
   interval = atoi (interval_str);
   cubrid_cmd_name (path);
 
@@ -16592,14 +16628,25 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   ret_val = run_child (argv, 0, NULL, "/dev/null", "/dev/null", &status);
 #endif
 
+  mutex_lock (*_statdumpd_mutex ());
+
   if (ret_val < 0 || status != EXIT_SUCCESS)
     {
+      /*
+       * give the reserved entry back; nobody else could have touched
+       * it while it was STATD_STARTING
+       */
+      statdump_daemon.erase (db_name);
+      mutex_unlock (*_statdumpd_mutex ());
       nv_update_val (res, "note", "could not execute statdump");
       return -1;
     }
 
-  statdump_daemon[slot].status = STATD_RUNNING;
-  statdump_daemon[slot].pid = ret_val;
+  statdump_daemon[db_name].status = STATD_RUNNING;
+  statdump_daemon[db_name].pid = ret_val;
+
+  mutex_unlock (*_statdumpd_mutex ());
+
   nv_update_val (res, "note", db_name);
   nv_update_val (res, "status", "success");
   nv_add_nvp_int (res, "pid", ret_val);
@@ -16614,24 +16661,35 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
 {
   int ret_val = ERR_NO_ERROR;
   char *db_name;
-  int slot;
+  int pid;
   char cmd [1024];
   int ret;
 
   db_name = nv_get_val (req, "_DBNAME");
-  if (!db_name || (slot = find_statdumpd_info (db_name)) < 0)
+
+  mutex_lock (*_statdumpd_mutex ());
+
+  map <string, T_STATDUMP_STAT>::iterator itor =
+    db_name ? statdump_daemon.find (db_name) : statdump_daemon.end ();
+  if (itor == statdump_daemon.end () || itor->second.status != STATD_RUNNING)
    {
+     mutex_unlock (*_statdumpd_mutex ());
      nv_update_val (res, "note", "no statdump running");
      nv_update_val (res, "status", "failed");
      return -1;
    }
 
+  pid = itor->second.pid;
+  itor->second.status = STATD_STOPPING;
+
+  mutex_unlock (*_statdumpd_mutex ());
+
   nv_update_val (res, "note", db_name);
 
 #if defined (WINDOWS)
-  sprintf (cmd, "taskkill /T /F /PID %d", statdump_daemon[slot].pid);
+  sprintf (cmd, "taskkill /T /F /PID %d", pid);
 #else
-  sprintf (cmd, "/bin/ps -o pid --ppid %d | grep -v PID | xargs kill", statdump_daemon[slot].pid);
+  sprintf (cmd, "/bin/ps -o pid --ppid %d | grep -v PID | xargs kill", pid);
 #endif
 
   ret_val = system (cmd);
@@ -16642,7 +16700,7 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
    */
   if (ret_val < 0)
     {
-      sprintf (cmd, "/bin/ps -p %d", statdump_daemon[slot].pid);
+      sprintf (cmd, "/bin/ps -p %d", pid);
       ret = system (cmd);
       if (ret < 0)
         {
@@ -16655,61 +16713,35 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
    }
 #endif
 
+  mutex_lock (*_statdumpd_mutex ());
+
+  itor = statdump_daemon.find (db_name);
+
   if (ret_val < 0)
       {
-        nv_add_nvp_int (res, "pid", statdump_daemon[slot].pid);
+        /*
+         * kill failed: put the entry back to STATD_RUNNING (instead of
+         * leaving it stuck in STATD_STOPPING) so a retry can find it
+         */
+        if (itor != statdump_daemon.end ())
+          {
+            itor->second.status = STATD_RUNNING;
+          }
+        mutex_unlock (*_statdumpd_mutex ());
+        nv_add_nvp_int (res, "pid", pid);
         nv_update_val (res, "status", "failed");
         return ret_val;
       }
 
-  statdump_daemon[slot].status = STATD_IDLE;
+  if (itor != statdump_daemon.end ())
+    {
+      statdump_daemon.erase (itor);
+    }
+
+  mutex_unlock (*_statdumpd_mutex ());
+
   nv_update_val (res, "status", "success");
   return ret_val;
-}
-
-int
-find_new_statdumpd_info ()
-{
-  int i;
-  if (statdump_daemon == NULL)
-    {
-       statdump_daemon = (T_STATDUMP_STAT *) calloc (sizeof(T_STATDUMP_STAT), MAX_STATDUMP_PROC);
-       if (statdump_daemon == NULL)
-         {
-           return -1;
-         }
-         else
-          {
-            return 0;
-          }
-    }
-  for (i = 0; i < MAX_STATDUMP_PROC; i++)
-    {
-      if (statdump_daemon[i].status == STATD_IDLE)
-        {
-          return i;
-        }
-    }
-  return -3;
-}
-
-int
-find_statdumpd_info (char *dbname)
-{
-  int i;
-
-  if (statdump_daemon == NULL)
-    {
-      return -1;
-    }
-  for (i = 0; i < MAX_STATDUMP_PROC; i++)
-    {
-      if (statdump_daemon[i].status == STATD_RUNNING && strcmp (statdump_daemon[i].dbname, dbname) == 0)
-        {
-          return i;
-        }
-    }
-  return -1;
 }
 
 
