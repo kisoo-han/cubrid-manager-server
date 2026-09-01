@@ -140,6 +140,7 @@ using namespace std;
 #endif /* !WINDOWS */
 
 #define        ER_FEATURE_DEPRECATED   -2
+#define MAX_TRIES_FIND_CHILD_PID 20
 
 extern T_USER_TOKEN_INFO *user_token_info;
 
@@ -16581,7 +16582,7 @@ _find_statdumpd_worker_pid (int dispatcher_pid)
 {
   int tries;
 
-  for (tries = 0; tries < 20; tries++)
+  for (tries = 0; tries < MAX_TRIES_FIND_CHILD_PID; tries++)
     {
       HANDLE snap = CreateToolhelp32Snapshot (TH32CS_SNAPPROCESS, 0);
       if (snap != INVALID_HANDLE_VALUE)
@@ -16631,25 +16632,116 @@ _statdump_pid_is_alive (int pid)
 }
 #else
 static int
+_read_first_child_pid_from_proc_children (int parent_pid)
+{
+  char path[PATH_MAX];
+  FILE *fp;
+  int child_pid = -1;
+
+  snprintf (path, sizeof (path), "/proc/%d/task/%d/children", parent_pid, parent_pid);
+  fp = fopen (path, "r");
+  if (fp == NULL)
+    {
+      return -1;
+    }
+  if (fscanf (fp, "%d", &child_pid) != 1)
+    {
+      child_pid = -1;
+    }
+  fclose (fp);
+  return child_pid;
+}
+
+/*
+ * _find_first_child_pid_by_proc_scan ()
+ * scan /proc/<pid>/stat for every numeric entry directly under /proc
+ * and return the first one whose ppid field is parent_pid.
+ */
+static int
+_find_first_child_pid_by_proc_scan (int parent_pid)
+{
+  DIR *dp;
+  struct dirent *entry;
+  int found_pid = -1;
+
+  dp = opendir ("/proc");
+  if (dp == NULL)
+    {
+      return -1;
+    }
+
+  while (found_pid < 0 && (entry = readdir (dp)) != NULL)
+    {
+      int candidate_pid;
+      char path[PATH_MAX];
+      char buf[SIZE_BUFFER_MAX];
+      FILE *fp;
+
+      if (entry->d_name[0] < '0' || entry->d_name[0] > '9')
+        {
+          continue;
+        }
+      candidate_pid = atoi (entry->d_name);
+      if (candidate_pid <= 0)
+        {
+          continue;
+        }
+
+      snprintf (path, sizeof (path), "/proc/%d/stat", candidate_pid);
+      fp = fopen (path, "r");
+      if (fp == NULL)
+        {
+          continue;
+        }
+
+      if (fgets (buf, sizeof (buf), fp) != NULL)
+        {
+          char *rparen = strrchr (buf, ')');
+          if (rparen != NULL)
+            {
+              int ppid = -1;
+
+              if (sscanf (rparen + 2, "%*c %d", &ppid) == 1 && ppid == parent_pid)
+                {
+                  found_pid = candidate_pid;
+                }
+            }
+        }
+      fclose (fp);
+    }
+
+  closedir (dp);
+  return found_pid;
+}
+
+/*
+ * _find_child_pid () - parent_pid's first child pid, or -1 if it has
+ * none right now.
+ */
+static int
+_find_child_pid (int parent_pid)
+{
+  int child_pid = _read_first_child_pid_from_proc_children (parent_pid);
+
+  if (child_pid <= 0)
+    {
+      child_pid = _find_first_child_pid_by_proc_scan (parent_pid);
+    }
+  return child_pid;
+}
+
+static int
 _find_statdumpd_worker_pid (int dispatcher_pid)
 {
-  char cmd[128];
   int tries;
 
-  snprintf (cmd, sizeof (cmd), "/bin/ps -o pid= --ppid %d 2>/dev/null", dispatcher_pid);
-
-  for (tries = 0; tries < 20; tries++)
+  for (tries = 0; tries < MAX_TRIES_FIND_CHILD_PID; tries++)
     {
-      FILE *fp = popen (cmd, "r");
-      if (fp != NULL)
+      int child_pid = _find_child_pid (dispatcher_pid);
+
+      if (child_pid > 0)
         {
-          int child_pid = -1;
-          int n = fscanf (fp, "%d", &child_pid);
-          pclose (fp);
-          if (n == 1 && child_pid > 0)
-            {
-              return child_pid;
-            }
+          return child_pid;
         }
       usleep (100 * 1000);
     }
@@ -16864,8 +16956,9 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   char *db_name;
   int pid;
   int worker_pid;
+#if defined (WINDOWS)
   char cmd [1024];
-  int ret;
+#endif
   T_DB_SERVICE_MODE db_mode;
 
   db_name = nv_get_val (req, "dbname");
@@ -16900,40 +16993,52 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
 #if defined (WINDOWS)
   /* /T kills pid's whole process tree, worker included, in one shot */
   sprintf (cmd, "taskkill /T /F /PID %d", pid);
+  ret_val = system (cmd);
 #else
   if (worker_pid > 0)
     {
-      sprintf (cmd, "kill %d", worker_pid);
+      ret_val = (kill ((pid_t) worker_pid, SIGTERM) == 0 || errno == ESRCH) ? 0 : -1;
     }
   else
     {
-      sprintf (cmd, "/bin/ps -o pid --ppid %d | grep -v PID | xargs kill", pid);
+      int discovered = _find_child_pid (pid);
+
+      if (discovered <= 0)
+        {
+          ret_val = 0;    /* nothing found to kill */
+        }
+      else
+        {
+          ret_val = (kill ((pid_t) discovered, SIGTERM) == 0 || errno == ESRCH) ? 0 : -1;
+        }
     }
-#endif
 
-  ret_val = system (cmd);
-
-#if !defined (WINDOWS)
   /*
    * Double check if the process is still running.
    */
   if (ret_val < 0)
     {
-      sprintf (cmd, "/bin/ps -p %d", pid);
-      ret = system (cmd);
-      if (ret < 0)
+      int still_running = (kill ((pid_t) pid, 0) == 0);
+      int check_errno = errno;
+
+      if (still_running)
         {
-          ret_val = 0;
+          nv_add_nvp (res, "Linux_error", "process still running");
+        }
+      else if (check_errno == EPERM)
+        {
+          nv_add_nvp (res, "Linux_error", strerror (check_errno));
         }
       else
         {
-          nv_add_nvp (res, "Linux_error", strerror (errno));
+          /* pid is gone (ESRCH or similar): nothing to worry about */
+          ret_val = 0;
         }
    }
 
   if (ret_val >= 0)
     {
-      kill (pid, SIGKILL);
+      kill (pid, SIGKILL);    /* make sure the dispatcher itself (pid) is gone */
     }
 #endif
 
