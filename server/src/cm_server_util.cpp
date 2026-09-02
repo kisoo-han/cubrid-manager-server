@@ -4294,6 +4294,7 @@ gen_tempfile_path (char *tempfile, const char *tempdir, const char *prefix, int 
   time_t now;
   long tid;
   int ret = -1;
+  int myseq = ATOMIC_FETCH_ADD1 (seq);
 
   if (tempfile == NULL || tempdir == NULL || size < 1)
     {
@@ -4303,14 +4304,13 @@ gen_tempfile_path (char *tempfile, const char *tempdir, const char *prefix, int 
 #if defined (WINDOWS)
   tid = GetCurrentThreadId ();
 #else
-  tid = pthread_self ();
+  tid = (long) (intptr_t) pthread_self ();
 #endif
 
   now = time (NULL);
-  ATOMIC_FETCH_ADD1 (seq);
 
-  ret = snprintf (tempfile, size - 1, "%s/%s_%03d_%ld_%ld_%ld", tempdir, prefix ? prefix : "", task_code,
-           (long) now, tid, seq);
+  ret = snprintf (tempfile, size - 1, "%s/%s_%03d_%ld_%ld_%d", tempdir, prefix ? prefix : "", task_code,
+           (long) now, tid, myseq);
 
-  return (ret > 0 && ret < (size - 1)) ? 0 : -1;
+  return (ret > 0 && ret < (int) (size - 1)) ? 0 : -1;
 }
