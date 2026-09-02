@@ -176,16 +176,18 @@ void find_and_parse_cub_admin_version (int &major_version, int &minor_version, c
   run_child (argv, 1, NULL, tmpfile, NULL, NULL);
   if ((infile = fopen (tmpfile, "r")) == NULL)
     {
-      LOG_ERROR ("cubrid --version is skipped due to temporarily insufficient resources");
+      LOG_ERROR ("Unable to determine cubrid version due to a system error. Set version to %d.%d defined by default.",
+                 cubrid_version_major, cubrid_version_minor);
       return;
     }
 
   if (!fgets (strbuf, sizeof (strbuf), infile) || ! fgets (strbuf, sizeof (strbuf), infile))
     {
-       LOG_ERROR ("cubrid --version is skipped due to temporarily insufficient resources");
-       fclose (infile);
-       unlink (tmpfile);
-       return;
+      LOG_ERROR ("Unable to determine cubrid version due to a system error. Set version to %d.%d defined by default.",
+                 cubrid_version_major, cubrid_version_minor);
+      fclose (infile);
+      unlink (tmpfile);
+      return;
     }
 
   sscanf (strbuf, "%*s %s", version);
