@@ -240,7 +240,7 @@ typedef struct
 /*
  * statdump_daemon - one entry per database, dbname is the map key
  */
-map <string, T_STATDUMP_STAT> statdump_daemon;
+static map <string, T_STATDUMP_STAT> statdump_daemon;
 
 #define	STATD_STARTING	0
 #define	STATD_RUNNING	1
