@@ -159,6 +159,8 @@ void find_and_parse_cub_admin_version (int &major_version, int &minor_version, c
   FILE *infile;
   char cmd_name[CUBRID_CMD_NAME_LEN];
   char *saveptr;
+  int local_major = -1, local_minor = -1;
+  char version[BUFFER_MAX_LEN];
 
   if (build_version != NULL && build_version_size > 0)
     {
@@ -172,48 +174,61 @@ void find_and_parse_cub_admin_version (int &major_version, int &minor_version, c
   argv[2] = NULL;
 
   run_child (argv, 1, NULL, tmpfile, NULL, NULL);
-  if ((infile = fopen (tmpfile, "r")) != NULL)
+  if ((infile = fopen (tmpfile, "r")) == NULL)
     {
-      if (!fgets (strbuf, sizeof (strbuf), infile) || ! fgets (strbuf, sizeof (strbuf), infile))
-        {
-           LOG_ERROR ("cubrid --version is skipped due to temporarily insufficient resources");
-           major_version = minor_version = -1;
-           return;
-        }
-      char version[10];
-      sscanf (strbuf, "%*s %s", version);
+      LOG_ERROR ("cubrid --version is skipped due to temporarily insufficient resources");
+      return;
+    }
 
-      char *p = STRTOK (version, ".", &saveptr);
-      major_version = atoi (p);
-      p = STRTOK (NULL, ".", &saveptr);
-      minor_version = atoi (p);
+  if (!fgets (strbuf, sizeof (strbuf), infile) || ! fgets (strbuf, sizeof (strbuf), infile))
+    {
+       LOG_ERROR ("cubrid --version is skipped due to temporarily insufficient resources");
+       fclose (infile);
+       unlink (tmpfile);
+       return;
+    }
 
-      if (build_version != NULL && build_version_size > 0)
+  sscanf (strbuf, "%*s %s", version);
+
+  char *p = STRTOK (version, ".", &saveptr);
+  if (p != NULL && is_positive_number (p))
+    {
+      local_major = atoi (p);
+    }
+
+  p = STRTOK (NULL, ".", &saveptr);
+  if (p != NULL && is_positive_number (p))
+    {
+      local_minor = atoi (p);
+    }
+
+  if (local_major > 0 && local_minor >= 0)
+    {
+      major_version = local_major;
+      minor_version = local_minor;
+    }
+
+  if (build_version != NULL && build_version_size > 0)
+    {
+      char *lparen = strchr (strbuf, '(');
+      if (lparen != NULL)
         {
-          char *lparen = strchr (strbuf, '(');
-          if (lparen != NULL)
+          char *rparen = strchr (lparen + 1, ')');
+          if (rparen != NULL && rparen > lparen + 1)
             {
-              char *rparen = strchr (lparen + 1, ')');
-              if (rparen != NULL && rparen > lparen + 1)
+              size_t len = (size_t) (rparen - (lparen + 1));
+              if (len >= build_version_size)
                 {
-                  size_t len = (size_t) (rparen - (lparen + 1));
-                  if (len >= build_version_size)
-                    {
-                      len = build_version_size - 1;
-                    }
-                  strncpy (build_version, lparen + 1, len);
-                  build_version[len] = '\0';
+                  len = build_version_size - 1;
                 }
+              strncpy (build_version, lparen + 1, len);
+              build_version[len] = '\0';
             }
         }
+    }
 
-      fclose (infile);
-      unlink (tmpfile);
-    }
-  else
-    {
-      major_version = minor_version = -1;
-    }
+  fclose (infile);
+  unlink (tmpfile);
 }
 
 GeneralSpacedbResult *

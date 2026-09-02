@@ -115,8 +115,13 @@ struct worker_context
 #endif
 };
 
-int cubrid_version_major = -1;
-int cubrid_version_minor = -1;
+/*
+ * When the CMS starts, it gets the currently installed engine version.
+ * if this fails, it sets the default value to 11.4.
+ * This value is used in APIs such as dbspaceinfo.
+ */
+int cubrid_version_major = 11;
+int cubrid_version_minor = 4;
 char cubrid_version_build[CUBRID_VERSION_BUILD_LEN] = "";
 
 int
