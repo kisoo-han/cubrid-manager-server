@@ -228,6 +228,8 @@ typedef struct
    int interval;
    time_t started;
    int worker_pid;  /* pid of the dispatcher's own worker child */
+   long long dispatcher_start_time;
+   long long worker_start_time;
  } T_STATDUMP_STAT;
 
 typedef struct
@@ -16627,19 +16629,73 @@ _find_statdumpd_worker_pid (int dispatcher_pid)
 }
 
 /*
- * _statdump_pid_is_alive () - true if pid is still a live process.
+ * _get_proc_start_time () - pid's process creation time, as a 64-bit
+ *   FILETIME value, or -1 if pid doesn't exist
+ */
+static long long
+_get_proc_start_time (int pid)
+{
+  HANDLE h;
+  FILETIME creation, exit_time, kernel, user;
+  long long start_time = -1;
+
+  h = OpenProcess (PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD) pid);
+  if (h == NULL)
+    {
+      return -1;
+    }
+
+  if (GetProcessTimes (h, &creation, &exit_time, &kernel, &user))
+    {
+      ULARGE_INTEGER uli;
+      uli.LowPart = creation.dwLowDateTime;
+      uli.HighPart = creation.dwHighDateTime;
+      start_time = (long long) uli.QuadPart;
+    }
+
+  CloseHandle (h);
+  return start_time;
+}
+
+/*
+ * _statdump_pid_is_alive () - true if pid is still a live process AND
+ *   (when expected_start_time is >= 0) is still the same process we
+ *   recorded
  */
 static int
-_statdump_pid_is_alive (int pid)
+_statdump_pid_is_alive (int pid, long long expected_start_time)
 {
   HANDLE h;
   DWORD exit_code;
   int alive;
 
+  if (pid <= 0)
+    {
+      return 0;
+    }
+
   h = OpenProcess (PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD) pid);
   if (h == NULL)
     {
       return 0;    /* no such process */
+    }
+
+  if (expected_start_time >= 0)
+    {
+      FILETIME creation, exit_time, kernel, user;
+
+      if (GetProcessTimes (h, &creation, &exit_time, &kernel, &user))
+        {
+          ULARGE_INTEGER uli;
+          uli.LowPart = creation.dwLowDateTime;
+          uli.HighPart = creation.dwHighDateTime;
+          if ((long long) uli.QuadPart != expected_start_time)
+            {
+              /* a different process now occupies this pid number */
+              CloseHandle (h);
+              return 0;
+            }
+        }
     }
 
   alive = (GetExitCodeProcess (h, &exit_code) && exit_code == STILL_ACTIVE);
@@ -16840,43 +16896,112 @@ _find_statdumpd_worker_pid (int dispatcher_pid)
 }
 
 /*
- * _statdump_pid_is_alive () - true if pid still exists as a live (i.e.
- * not merely un-reaped) process.
+ * _read_proc_stat_fields () - parse /proc/<pid>/stat and hand back its state character
+ *   returns 0 on success, -1 if the file doesn't exist or couldn't be parsed.
  */
 static int
-_statdump_pid_is_alive (int pid)
+_read_proc_stat_fields (int pid, char *state_out, long long *start_time_out)
 {
   char path[64];
-  char buf[256];
+  char buf[1024];
   FILE *fp;
+  char *p;
+  char *tok;
+  int field;
+
+  if (pid <= 0)
+    {
+      return -1;
+    }
+
+  snprintf (path, sizeof (path), "/proc/%d/stat", pid);
+  fp = fopen (path, "r");
+  if (fp == NULL)
+    {
+      return -1;
+    }
+  if (fgets (buf, sizeof (buf), fp) == NULL)
+    {
+      fclose (fp);
+      return -1;
+    }
+  fclose (fp);
+
+  p = strrchr (buf, ')');
+  if (p == NULL)
+    {
+      return -1;
+    }
+
+  tok = strtok (p + 1, " ");
+  if (tok == NULL)
+    {
+      return -1;
+    }
+  if (state_out != NULL)
+    {
+      *state_out = tok[0];
+    }
+
+  for (field = 3; tok != NULL && field < 22; field++)
+    {
+      tok = strtok (NULL, " ");
+    }
+
+  if (tok == NULL)
+    {
+      return -1;
+    }
+  if (start_time_out != NULL && sscanf (tok, "%lld", start_time_out) != 1)
+    {
+      return -1;
+    }
+
+  return 0;
+}
+
+/*
+ * _get_proc_start_time () - pid's starttime
+ */
+static long long
+_get_proc_start_time (int pid)
+{
+  long long start_time;
+
+  if (_read_proc_stat_fields (pid, NULL, &start_time) != 0)
+    {
+      return -1;
+    }
+  return start_time;
+}
+
+/*
+ * _statdump_pid_is_alive () - true if pid still exists as a live
+ */
+static int
+_statdump_pid_is_alive (int pid, long long expected_start_time)
+{
+  char state = '\0';
+  long long current_start_time = -1;
 
   if (pid <= 0)
     {
       return 0;
     }
 
-  snprintf (path, sizeof (path), "/proc/%d/stat", pid);
-  fp = fopen (path, "r");
-  if (fp != NULL)
+  if (_read_proc_stat_fields (pid, &state, &current_start_time) == 0)
     {
-      char state = '\0';
-
-      if (fgets (buf, sizeof (buf), fp) != NULL)
+      if (expected_start_time >= 0 && current_start_time != expected_start_time)
         {
-          char *rparen = strrchr (buf, ')');
-          if (rparen != NULL)
-            {
-              sscanf (rparen + 2, " %c", &state);
-            }
+          /* a different process now occupies this pid number */
+          return 0;
         }
-      fclose (fp);
-
-      if (state != '\0')
-        {
-          return (state != 'Z');
-        }
+      return (state != 'Z');
     }
 
+  /*
+   * /proc/<pid>/stat unreadable
+   */
   if (kill ((pid_t) pid, 0) == 0)
     {
       return 1;
@@ -16898,9 +17023,13 @@ _reap_dead_statdump_entries (void)
     {
       if (itor->second.status == STATD_RUNNING)
         {
-          int check_pid = (itor->second.worker_pid > 0) ? itor->second.worker_pid : itor->second.pid;
+          bool have_worker = itor->second.worker_pid > 0;
+          int check_pid = have_worker ? itor->second.worker_pid : itor->second.pid;
+          long long check_start_time = have_worker
+                                       ? itor->second.worker_start_time
+                                       : itor->second.dispatcher_start_time;
 
-          if (!_statdump_pid_is_alive (check_pid))
+          if (!_statdump_pid_is_alive (check_pid, check_start_time))
             {
               map <string, T_STATDUMP_STAT>::iterator to_erase = itor;
               ++itor;
@@ -16960,6 +17089,8 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   reserved.interval = interval;
   reserved.started = 0;
   reserved.worker_pid = -1;
+  reserved.dispatcher_start_time = -1;
+  reserved.worker_start_time = -1;
   pair <map <string, T_STATDUMP_STAT>::iterator, bool> inserted =
     statdump_daemon.insert (make_pair (string (db_name), reserved));
 
@@ -16995,6 +17126,8 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   }
 #endif
 
+  long long dispatcher_start_time = (ret_val >= 0) ? _get_proc_start_time (ret_val) : -1;
+
   mutex_lock (*_statdumpd_mutex ());
 
   if (ret_val < 0 || status != EXIT_SUCCESS)
@@ -17012,11 +17145,13 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   statdump_daemon[db_name].status = STATD_RUNNING;
   statdump_daemon[db_name].pid = ret_val;
   statdump_daemon[db_name].started = time (NULL);
+  statdump_daemon[db_name].dispatcher_start_time = dispatcher_start_time;
 
   mutex_unlock (*_statdumpd_mutex ());
 
   {
     int worker_pid = _find_statdumpd_worker_pid (ret_val);
+    long long worker_start_time = (worker_pid > 0) ? _get_proc_start_time (worker_pid) : -1;
 
     mutex_lock (*_statdumpd_mutex ());
 
@@ -17024,6 +17159,7 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
     if (worker_itor != statdump_daemon.end () && worker_itor->second.pid == ret_val)
       {
         worker_itor->second.worker_pid = worker_pid;
+        worker_itor->second.worker_start_time = worker_start_time;
       }
 
     mutex_unlock (*_statdumpd_mutex ());
@@ -17045,6 +17181,8 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   char *db_name;
   int pid;
   int worker_pid;
+  long long dispatcher_start_time;
+  long long worker_start_time;
   T_DB_SERVICE_MODE db_mode;
 
   db_name = nv_get_val (req, "dbname");
@@ -17075,6 +17213,8 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
 
   pid = itor->second.pid;
   worker_pid = itor->second.worker_pid;
+  dispatcher_start_time = itor->second.dispatcher_start_time;
+  worker_start_time = itor->second.worker_start_time;
   itor->second.status = STATD_STOPPING;
 
   mutex_unlock (*_statdumpd_mutex ());
@@ -17082,15 +17222,23 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   nv_update_val (res, "note", db_name);
 
 #if defined (WINDOWS)
-  /* kills pid's whole process tree (worker included) natively */
-  ret_val = _win_kill_process_tree (pid);
+  /*
+   * kills pid's whole process tree (worker included) natively
+   */
+  ret_val = _statdump_pid_is_alive (pid, dispatcher_start_time)
+           ? _win_kill_process_tree (pid) : 0;
 #else
   if (worker_pid > 0)
     {
-      ret_val = (kill ((pid_t) worker_pid, SIGTERM) == 0 || errno == ESRCH) ? 0 : -1;
+      ret_val = _statdump_pid_is_alive (worker_pid, worker_start_time)
+               ? ((kill ((pid_t) worker_pid, SIGTERM) == 0 || errno == ESRCH) ? 0 : -1)
+               : 0;
     }
-  else
+  else if (_statdump_pid_is_alive (pid, dispatcher_start_time))
     {
+      /*
+       * worker_pid was never discovered
+       */
       int discovered = _find_child_pid (pid);
 
       if (discovered <= 0)
@@ -17101,6 +17249,12 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
         {
           ret_val = (kill ((pid_t) discovered, SIGTERM) == 0 || errno == ESRCH) ? 0 : -1;
         }
+    }
+  else
+    {
+      /* dispatcher pid is gone, or already recycled to a different
+       * process: nothing of ours left to signal. */
+      ret_val = 0;
     }
 
   /*
@@ -17127,9 +17281,9 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
         }
    }
 
-  if (ret_val >= 0)
+  if (ret_val >= 0 && _statdump_pid_is_alive (pid, dispatcher_start_time))
     {
-      kill (pid, SIGKILL);    /* make sure the dispatcher itself (pid) is gone */
+      kill (pid, SIGKILL);
     }
 #endif
 
