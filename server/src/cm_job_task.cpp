@@ -16831,21 +16831,20 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   T_DB_SERVICE_MODE db_mode;
 
   db_name = nv_get_val (req, "dbname");
-  db_mode = uDatabaseMode (db_name, NULL);
 
+  interval_str = nv_get_val (req, "interval");
+  if (!interval_str || !db_name)
+    {
+      snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "dbname or interval was not specified.");
+      return ERR_WITH_MSG;
+    }
+
+  db_mode = uDatabaseMode (db_name, NULL);
   if (db_mode != DB_SERVICE_MODE_CS)
     {
       snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "%s", db_name);
       return ERR_DB_INACTIVE;
     }
-
-  interval_str = nv_get_val (req, "interval");
-  if (!interval_str || !db_name)
-   {
-     nv_update_val (res, "note", "no sufficient arguments");
-     LOG_ERROR ("start_statdump: dbname or interval was not specified");
-     return -1;
-   }
 
   interval = atoi (interval_str);
 
@@ -16957,6 +16956,11 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   T_DB_SERVICE_MODE db_mode;
 
   db_name = nv_get_val (req, "dbname");
+  if (db_name == NULL)
+    {
+      snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "dbname was not specified.");
+      return ERR_WITH_MSG;
+    }
 
   db_mode = uDatabaseMode (db_name, NULL);
   if (db_mode != DB_SERVICE_MODE_CS)
