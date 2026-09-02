@@ -3393,7 +3393,7 @@ tsStopDB (nvplist *req, nvplist *res, char *_dbmt_error)
   if (db_mode != DB_SERVICE_MODE_CS)
     {
       sprintf (_dbmt_error, "%s", dbname);
-      return ERR_DB_ACTIVE;
+      return ERR_DB_INACTIVE;
     }
 
   if (cmd_stop_server (dbname, _dbmt_error, DBMT_ERROR_MSG_SIZE) < 0)
