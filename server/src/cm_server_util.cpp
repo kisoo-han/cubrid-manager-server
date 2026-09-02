@@ -3041,6 +3041,7 @@ _merge_envp (const char *const envp[])
   merged = (char **) malloc (sizeof (char *) * (base_count + extra_count + 1));
   if (merged == NULL)
     {
+      LOG_ERROR ("malloc () for execve failed (critical), try execv () instead");
       env_mutex_unlock ();
       return NULL;
     }
