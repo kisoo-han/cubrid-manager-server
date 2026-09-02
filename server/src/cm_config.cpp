@@ -419,6 +419,7 @@ uReadSystemConfig (void)
                     "CUBRID Manager Server: invalid async_job_ttl_sec in cm.conf (%s). use default (%d secs)\n",
                     ent_val, DEFAULT_ASYNC_JOB_TTL_SEC);
               ut_record_cubrid_utility_log_stderr (err_buf);
+              return -1;
             }
         }
       else if (strcasecmp (ent_name, "max_num_async_task") == 0)
@@ -432,7 +433,7 @@ uReadSystemConfig (void)
                         "CUBRID Manager Server : max_num_async_task(%d) in cm.conf is invalid. it must be between 1 and %d.\n",
                         max_task, CMS_MAX_NUM_ASYNC_TASK_LIMIT);
               ut_record_cubrid_utility_log_stderr (err_buf);
-              exit (1);
+              return -1;
             }
           sco.iMaxNumAsyncTask = max_task;
         }
