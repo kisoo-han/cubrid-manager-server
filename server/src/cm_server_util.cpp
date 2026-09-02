@@ -3149,37 +3149,38 @@ run_child_env (const char *const argv[], int wait_flag, const char *stdin_file, 
   pid = fork ();
   if (pid == 0)
     {
-      FILE *fp;
+      /*
+       * use async-signal-safe system calls only
+       */
+      int fd;
 
       close_all_fds (3);
 
       if (stdin_file != NULL)
        {
-         fp = fopen (stdin_file, "r");
-         if (fp != NULL)
+         fd = open (stdin_file, O_RDONLY);
+         if (fd >= 0)
            {
-             dup2 (fileno (fp), 0);
-             fclose (fp);
+             dup2 (fd, 0);
+             close (fd);
            }
        }
       if (stdout_file != NULL)
        {
-         unlink (stdout_file);
-         fp = fopen (stdout_file, "w");
-         if (fp != NULL)
+         fd = open (stdout_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+         if (fd >= 0)
            {
-             dup2 (fileno (fp), 1);
-             fclose (fp);
+             dup2 (fd, 1);
+             close (fd);
            }
        }
       if (stderr_file != NULL)
        {
-         unlink (stderr_file);
-         fp = fopen (stderr_file, "w");
-         if (fp != NULL)
+         fd = open (stderr_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+         if (fd >= 0)
            {
-             dup2 (fileno (fp), 2);
-             fclose (fp);
+             dup2 (fd, 2);
+             close (fd);
            }
        }
 
