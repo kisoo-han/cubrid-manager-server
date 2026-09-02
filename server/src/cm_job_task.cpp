@@ -3356,7 +3356,8 @@ tsStartDB (nvplist *req, nvplist *res, char *_dbmt_error)
     }
   if (db_mode == DB_SERVICE_MODE_CS)
     {
-      return ERR_NO_ERROR;
+      snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "database is aleady running: %s", dbname);
+      return ERR_WITH_MSG;
     }
 
   retval = cmd_start_server (dbname, err_buf, sizeof (err_buf));
@@ -3380,11 +3381,19 @@ int
 tsStopDB (nvplist *req, nvplist *res, char *_dbmt_error)
 {
   char *dbname;
+  T_DB_SERVICE_MODE db_mode;
 
   if ((dbname = nv_get_val (req, "_DBNAME")) == NULL)
     {
       sprintf (_dbmt_error, "%s", "database name");
       return ERR_PARAM_MISSING;
+    }
+
+  db_mode = uDatabaseMode (dbname, NULL);
+  if (db_mode != DB_SERVICE_MODE_CS)
+    {
+      sprintf (_dbmt_error, "%s", dbname);
+      return ERR_DB_ACTIVE;
     }
 
   if (cmd_stop_server (dbname, _dbmt_error, DBMT_ERROR_MSG_SIZE) < 0)
