@@ -511,6 +511,7 @@ static void
 ext_autojobs_log (const char *service, const char *serv_name, const char *errmsg)
 {
   time_t tt;
+  struct tm tm_buf;
   tm *t;
   FILE *outfile;
   char logfile[MAX_PATH];
@@ -525,7 +526,7 @@ ext_autojobs_log (const char *service, const char *serv_name, const char *errmsg
     {
       return;
     }
-  t = localtime (&tt);
+  t = LOCALTIME_R (&tt, &tm_buf);
   if (t)
     {
       strftime ( strbuf, MAX_PATH, "%Y%m%d_%H:%M:%S", t);

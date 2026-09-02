@@ -539,13 +539,12 @@ time_to_str (time_t t, const char *fmt, char *buf, int type)
   struct tm ltm;
   struct tm *tm_p;
 
-  tm_p = localtime (&t);
+  tm_p = LOCALTIME_R (&t, &ltm);
   if (tm_p == NULL)
     {
       *buf = '\0';
       return buf;
     }
-  ltm = *tm_p;
 
   if (type == TIME_STR_FMT_DATE)
     {

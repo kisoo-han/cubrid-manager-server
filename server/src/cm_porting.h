@@ -31,6 +31,7 @@
 #include "config.h"
 
 #include <errno.h>
+#include <time.h>
 
 #if defined(WINDOWS) && !defined (EOVERFLOW)
 #define EOVERFLOW    75
@@ -343,4 +344,23 @@ typedef volatile LONG atomic_counter_t;
 typedef volatile int atomic_counter_t;
 #define ATOMIC_FETCH_ADD1(cnt)  __sync_fetch_and_add(&(cnt), 1)
 #endif
+
+/*
+ * LOCALTIME_R (time_p, tm_p) - thread-safe localtime (), unified across
+ *   platforms.
+ *
+ *   POSIX  : localtime_r (const time_t *, struct tm *) returns struct tm *
+ *            (tm_p on success, NULL on failure).
+ *   Windows: localtime_s (struct tm *, const time_t *) - note the reversed
+ *            argument order versus localtime_r () - returns errno_t (0 on
+ *            success).
+ */
+#if defined(WINDOWS)
+#define LOCALTIME_R(time_p, tm_p) \
+    (localtime_s ((tm_p), (time_p)) == 0 ? (tm_p) : NULL)
+#else
+#define LOCALTIME_R(time_p, tm_p) \
+    localtime_r ((time_p), (tm_p))
+#endif
+
 #endif /* _CM_PORTING_H_ */

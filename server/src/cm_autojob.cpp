@@ -1092,12 +1092,11 @@ aj_execquery_handler (void *hd, time_t prev_check_time, time_t cur_time)
   query_period_details *detail1 = NULL;
   int tm_wday = 0;
 
-  tm_p = localtime (&cur_time);
+  tm_p = LOCALTIME_R (&cur_time, &cur_tm);
   if (tm_p == NULL)
     {
       return;
     }
-  cur_tm = *tm_p;
 
   for (c = (autoexecquery_node *) (hd); c != NULL; c = c->next)
     {
@@ -1199,12 +1198,11 @@ aj_execquery_get_exec_time (autoexecquery_node *c,
       time_t prev_day_sec = 0;
       struct tm prev_tm, *tm_p;
 
-      tm_p = localtime (&prev_check_time);
+      tm_p = LOCALTIME_R (&prev_check_time, &prev_tm);
       if (tm_p == NULL)
         {
           return 0;
         }
-      prev_tm = *tm_p;
 
       if (interval == 0)
 	{
@@ -1424,12 +1422,11 @@ aj_autobackupdb_handler (void *hd, time_t prev_check_time, time_t cur_time)
 
   backup_period_details *period_date = NULL;
 
-  tm_p = localtime (&cur_time);
+  tm_p = LOCALTIME_R (&cur_time, &cur_tm);
   if (tm_p == NULL)
     {
       return;
     }
-  cur_tm = *tm_p;
 
   for (c = (autobackupdb_node *) (hd); c != NULL; c = c->next)
     {
@@ -1447,12 +1444,11 @@ aj_autobackupdb_handler (void *hd, time_t prev_check_time, time_t cur_time)
           if (1 == c->is_interval)    // interval time for auto backup
             {
               time_t prev_day_sec;
-              tm_p = localtime (&prev_check_time);
+              tm_p = LOCALTIME_R (&prev_check_time, &prev_tm);
               if (tm_p == NULL)
                 {
                   return;
                 }
-              prev_tm = *tm_p;
 
               prev_day_sec =
                 prev_tm.tm_hour * 3600 + prev_tm.tm_min * 60 + prev_tm.tm_sec;

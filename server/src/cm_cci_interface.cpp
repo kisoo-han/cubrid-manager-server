@@ -1139,6 +1139,7 @@ _get_export_path (string &export_path, string &export_filename,
                   int export_type, const string &db_name)
 {
   time_t time_now;
+  struct tm tm_buf;
   struct tm *tm_now = NULL;
   char file_name_dt[PATH_MAX];
 
@@ -1157,27 +1158,14 @@ _get_export_path (string &export_path, string &export_filename,
       return false;
     }
 
-#ifndef WINDOWS
-  tm_now = new struct tm ();
-  if (localtime_r (&time_now, tm_now) == NULL)
-    {
-      delete tm_now;
-      tm_now = NULL;
-      return false;
-    }
-#else
-  tm_now = localtime (&time_now);
+  tm_now = LOCALTIME_R (&time_now, &tm_buf);
   if (tm_now == NULL)
     {
       return false;
     }
-#endif
 
   if (strftime (file_name_dt, PATH_MAX, "_%Y%m%d_%H%M%S", tm_now) == 0)
     {
-#ifndef WINDOWS
-      delete tm_now;
-#endif
       tm_now = NULL;
       return false;
     }
@@ -1200,9 +1188,6 @@ _get_export_path (string &export_path, string &export_filename,
       break;
     }
 
-#ifndef WINDOWS
-  delete tm_now;
-#endif
   tm_now = NULL;
 
   if (success)

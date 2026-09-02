@@ -15694,20 +15694,25 @@ static char *
 _get_format_time ()
 {
   char *buff = (char *) malloc (sizeof (char) * LINE_MAX);
-#ifdef WINDOWS
-
-#else
   time_t lt;
+  struct tm ltm;
+  struct tm *t;
+
+  if (buff == NULL)
+    {
+      return NULL;
+    }
+
+  buff[0] = '\0';
 
   time (&lt);
-  struct tm *t = localtime (&lt);
+  t = LOCALTIME_R (&lt, &ltm);
 
   if (t)
     {
       strftime (buff, LINE_MAX, "%Y%m%d %H:%M:%S", t);
     }
 
-#endif
   return buff;
 }
 

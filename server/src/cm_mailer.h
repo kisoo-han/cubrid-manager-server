@@ -1130,7 +1130,13 @@ private:
    time(&t);
    char timestring[128] = "";
    const char * timeformat = "Date: %d %b %y %H:%M:%S %Z";
-   if(strftime(timestring, 127, timeformat, localtime(&t))) { // got the date
+   struct tm tm_buf;
+#ifdef WIN32
+   struct tm *tm_p = (localtime_s(&tm_buf, &t) == 0) ? &tm_buf : NULL;
+#else
+   struct tm *tm_p = localtime_r(&t, &tm_buf);
+#endif
+   if(tm_p && strftime(timestring, 127, timeformat, tm_p)) { // got the date
       headerline = timestring;
       headerline += "\r\n";
       ret.insert(ret.end(), headerline.begin(), headerline.end());
