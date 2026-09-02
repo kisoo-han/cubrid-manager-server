@@ -836,13 +836,15 @@ static int
 check_file (char *fname, char *pname)
 {
   char tmpstrbuf[DBMT_ERROR_MSG_SIZE];
+  char errbuf[ERR_MSG_LEN];
 
   tmpstrbuf[0] = '\0';
 
   if (access (fname, F_OK | R_OK | W_OK) < 0)
     {
       snprintf (tmpstrbuf, DBMT_ERROR_MSG_SIZE,
-                "CUBRID Manager Server : %s - %s. - %s\n", fname, strerror (errno), pname);
+                "CUBRID Manager Server : %s - %s. - %s\n", fname,
+                STRERROR_R (errno, errbuf, sizeof (errbuf)), pname);
       ut_record_cubrid_utility_log_stderr (tmpstrbuf);
       return -1;
     }
@@ -854,13 +856,15 @@ check_path (char *dirname, char *pname)
 {
   /* check if directory exists */
   char tmpstrbuf[DBMT_ERROR_MSG_SIZE];
+  char errbuf[ERR_MSG_LEN];
 
   tmpstrbuf[0] = '\0';
 
   if (access (dirname, F_OK | W_OK | R_OK | X_OK) < 0)
     {
       snprintf (tmpstrbuf, DBMT_ERROR_MSG_SIZE,
-                "CUBRID Manager Server :  %s - %s. - %s\n", dirname, strerror (errno), pname);
+                "CUBRID Manager Server :  %s - %s. - %s\n", dirname,
+                STRERROR_R (errno, errbuf, sizeof (errbuf)), pname);
       ut_record_cubrid_utility_log_stderr (tmpstrbuf);
       return -1;
     }

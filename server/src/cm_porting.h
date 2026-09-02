@@ -32,6 +32,7 @@
 
 #include <errno.h>
 #include <time.h>
+#include <string.h>
 
 #if defined(WINDOWS) && !defined (EOVERFLOW)
 #define EOVERFLOW    75
@@ -355,6 +356,7 @@ typedef volatile int atomic_counter_t;
  *            argument order versus localtime_r () - returns errno_t (0 on
  *            success).
  */
+#define ERR_MSG_LEN 256
 #if defined(WINDOWS)
 #define LOCALTIME_R(time_p, tm_p) \
     (localtime_s ((tm_p), (time_p)) == 0 ? (tm_p) : NULL)
@@ -362,5 +364,43 @@ typedef volatile int atomic_counter_t;
 #define LOCALTIME_R(time_p, tm_p) \
     localtime_r ((time_p), (tm_p))
 #endif
+
+/*
+ * STRERROR_R (errnum, buf, buflen) - thread-safe strerror (), unified
+ *   across platforms.
+ *
+ *   POSIX  : 1. XSI-compliant
+ *               int strerror_r (int, char *, size_t)
+ *                    returns 0 on success
+ *            2. GNU-specific
+ *               char *strerror_r (int, char *, size_t)
+ *                    returns a message pointer
+ *            the two overloads below pick the right one and
+ *            works regardless of which one this translation unit's glibc
+ *            headers select.
+ *   Windows: strerror_s (char *, size_t, int)
+ *                       returns errno_t (0 on success)
+ */
+#ifdef __cplusplus
+#if defined(WINDOWS)
+#define STRERROR_R(errnum, buf, buflen) \
+    (strerror_s ((buf), (buflen), (errnum)) == 0 ? (buf) : (char *) "unknown error")
+#else
+static inline char *
+_cm_strerror_r_result (int xsi_ret, char *buf)
+{
+  return (xsi_ret == 0) ? buf : (char *) "unknown error";
+}
+
+static inline char *
+_cm_strerror_r_result (char *gnu_ret, char *)
+{
+  return gnu_ret;
+}
+
+#define STRERROR_R(errnum, buf, buflen) \
+    _cm_strerror_r_result (strerror_r ((errnum), (buf), (buflen)), (buf))
+#endif
+#endif /* __cplusplus */
 
 #endif /* _CM_PORTING_H_ */
