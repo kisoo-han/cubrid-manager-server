@@ -720,6 +720,13 @@ cm_async_request_handler (void *lpArg)
       response["status"] = STATUS_FAILURE;
       response["note"] = e.what ();
     }
+  catch (...)
+    {
+      LOG_ERROR ("cm_async_request_handler : unhandled non-standard exception "
+                "while processing an async task.");
+      response["status"] = STATUS_FAILURE;
+      response["note"] = "internal server error";
+    }
 
   nv_destroy (cli_request);
   nv_destroy (cli_response);
