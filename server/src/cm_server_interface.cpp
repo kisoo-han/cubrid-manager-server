@@ -1313,51 +1313,56 @@ ext_get_server_status (Json::Value &request, Json::Value &response)
 int
 cub_cm_request_handler (Json::Value &request, Json::Value &response)
 {
+  bool want_async = false;
 
   mutex_lock (cm_mutex);
 
-
-  if (ext_ut_validate_token (request, response) != ERR_NO_ERROR)
-    {
-      response["task"] = request["task"].asString();
-      mutex_unlock (cm_mutex);
-      return 1;
-    }
-
-  if (!ext_ut_validate_auth (request))
-    {
-      response["status"] = STATUS_FAILURE;
-      response["note"] = "The user don't have authority to execute the task: " + request["task"].asString();
-      response["task"] = request["task"].asString();
-
-      mutex_unlock (cm_mutex);
-      return 1;
-    }
-
-  if (cub_check_async_status (request, response))
-    {
-      mutex_unlock (cm_mutex);
-      return 1;
-    }
-  if (cub_cm_extend_request (request, response))
-    {
-      mutex_unlock (cm_mutex);
-      return 1;
-    }
-
   /*
-   * everything above this point is fast and bounded (token/auth lookup,
-   * a request_map scan), so it is fine to run it under cm_mutex.
+   * everything in this try block runs with cm_mutex held.
    */
-  {
-    const Json::Value &async_val = request.get ("async", "no");
-    bool want_async = async_val.isString ()
-                      && uStringEqual (async_val.asString ().c_str (), "yes")
-                      && is_async_capable_task (request["task"].asString ());
+  try
+    {
+      if (ext_ut_validate_token (request, response) != ERR_NO_ERROR)
+        {
+          response["task"] = request["task"].asString();
+          mutex_unlock (cm_mutex);
+          return 1;
+        }
 
-    mutex_unlock (cm_mutex);
-    cm_execute_request_async (request, response, sco.iHttpTimeout, want_async);
-  }
+      if (!ext_ut_validate_auth (request))
+        {
+          response["status"] = STATUS_FAILURE;
+          response["note"] = "The user don't have authority to execute the task: " + request["task"].asString();
+          response["task"] = request["task"].asString();
+
+          mutex_unlock (cm_mutex);
+          return 1;
+        }
+
+      if (cub_check_async_status (request, response))
+        {
+          mutex_unlock (cm_mutex);
+          return 1;
+        }
+      if (cub_cm_extend_request (request, response))
+        {
+          mutex_unlock (cm_mutex);
+          return 1;
+        }
+
+      const Json::Value &async_val = request.get ("async", "no");
+      want_async = async_val.isString ()
+                   && uStringEqual (async_val.asString ().c_str (), "yes")
+                   && is_async_capable_task (request["task"].asString ());
+    }
+  catch (...)
+    {
+      mutex_unlock (cm_mutex);
+      throw;
+    }
+
+  mutex_unlock (cm_mutex);
+  cm_execute_request_async (request, response, sco.iHttpTimeout, want_async);
 
   return 1;
 }
