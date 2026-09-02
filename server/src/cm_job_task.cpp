@@ -87,6 +87,7 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <algorithm>
 
 #include<assert.h>
 
@@ -16636,6 +16637,80 @@ _statdump_pid_is_alive (int pid)
   CloseHandle (h);
   return alive;
 }
+
+/*
+ * _win_kill_process_tree () - terminate root_pid and every descendant of
+ *   it (recursively), replacing "taskkill /T /F /PID <root_pid>"
+ *
+ *   returns 0 if every process found in the tree was terminated
+ *          -1 if any of them could not be terminated.
+ */
+static int
+_win_kill_process_tree (int root_pid)
+{
+  HANDLE snap;
+  PROCESSENTRY32 pe32;
+  vector <DWORD> pids;
+  size_t i;
+  int ret = 0;
+
+  snap = CreateToolhelp32Snapshot (TH32CS_SNAPPROCESS, 0);
+  if (snap == INVALID_HANDLE_VALUE)
+    {
+      return -1;
+    }
+
+  pe32.dwSize = sizeof (pe32);
+  pids.push_back ((DWORD) root_pid);
+
+  /*
+   * one snapshot, scanned once per pid already found (BFS): pids grows
+   * in place as descendants are discovered, so a pid appended by an
+   * earlier iteration is itself scanned for its own children later in
+   * this same loop.
+   */
+  for (i = 0; i < pids.size (); i++)
+    {
+      if (!Process32First (snap, &pe32))
+        {
+          break;
+        }
+      do
+        {
+          if (pe32.th32ParentProcessID == pids[i]
+              && find (pids.begin (), pids.end (), pe32.th32ProcessID) == pids.end ())
+            {
+              pids.push_back (pe32.th32ProcessID);
+            }
+        }
+      while (Process32Next (snap, &pe32));
+    }
+
+  CloseHandle (snap);
+
+  /* terminate descendants before root_pid; harmless either order, but
+   * avoids a brief window where a to-be-killed child looks re-parented */
+  for (i = pids.size (); i > 0; i--)
+    {
+      HANDLE h = OpenProcess (PROCESS_TERMINATE, FALSE, pids[i - 1]);
+      if (h == NULL)
+        {
+          /* already gone (typical: ERROR_INVALID_PARAMETER) is fine; */
+          if (GetLastError () != ERROR_INVALID_PARAMETER)
+            {
+              ret = -1;
+            }
+          continue;
+        }
+      if (!TerminateProcess (h, 1))
+        {
+          ret = -1;
+        }
+      CloseHandle (h);
+    }
+
+  return ret;
+}
 #else
 static int
 _read_first_child_pid_from_proc_children (int parent_pid)
@@ -16961,9 +17036,6 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   char *db_name;
   int pid;
   int worker_pid;
-#if defined (WINDOWS)
-  char cmd [1024];
-#endif
   T_DB_SERVICE_MODE db_mode;
 
   db_name = nv_get_val (req, "dbname");
@@ -17001,9 +17073,8 @@ ts_stop_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   nv_update_val (res, "note", db_name);
 
 #if defined (WINDOWS)
-  /* /T kills pid's whole process tree, worker included, in one shot */
-  sprintf (cmd, "taskkill /T /F /PID %d", pid);
-  ret_val = system (cmd);
+  /* kills pid's whole process tree (worker included) natively */
+  ret_val = _win_kill_process_tree (pid);
 #else
   if (worker_pid > 0)
     {
