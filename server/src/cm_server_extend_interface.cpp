@@ -83,6 +83,7 @@ static T_EXTEND_TASK_INFO ext_task_info[] =
   {"get_mon_interval", 0, ext_get_mon_interval, AU_MON},
   {"set_mon_interval", 0, ext_set_mon_interval, AU_ADMIN},
   {"get_mon_statistic", 0, ext_get_mon_statistic, AU_MON},
+  {"getserverstatus", 0, ext_get_server_status, AU_ADMIN},
   {NULL, 0, NULL, 0}
 };
 

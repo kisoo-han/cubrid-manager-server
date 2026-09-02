@@ -1207,27 +1207,14 @@ cub_check_async_status (Json::Value &request, Json::Value &response)
 }
 
 /*
- * cub_check_server_status () - handle a "getserverstatus" query: an
+ * ext_get_server_status () - handle a "getserverstatus" query: an
  *   admin-only, instant (no worker thread, no external process) health
- *   snapshot of the async-job subsystem, 'admin' user only
+ *   snapshot of the async-job subsystem.
  */
 int
-cub_check_server_status (Json::Value &request, Json::Value &response)
+ext_get_server_status (Json::Value &request, Json::Value &response)
 {
-  string task = request["task"].asString ();
-
-  if (task != "getserverstatus")
-    {
-      return 0;
-    }
-
-  if (request.get ("_ID", "").asString () != "admin")
-    {
-      response["status"] = STATUS_FAILURE;
-      response["note"] = "The user don't have authority to execute the task: getserverstatus";
-      response["task"] = task;
-      return 1;
-    }
+  response["task"] = request["task"].asString ();
 
   reap_stale_async_jobs ();
 
@@ -1348,11 +1335,6 @@ cub_cm_request_handler (Json::Value &request, Json::Value &response)
     }
 
   if (cub_check_async_status (request, response))
-    {
-      mutex_unlock (cm_mutex);
-      return 1;
-    }
-  if (cub_check_server_status (request, response))
     {
       mutex_unlock (cm_mutex);
       return 1;
