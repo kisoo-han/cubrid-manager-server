@@ -418,7 +418,7 @@ uReadSystemConfig (void)
               snprintf (err_buf, DBMT_ERROR_MSG_SIZE,
                     "CUBRID Manager Server: invalid async_job_ttl_sec in cm.conf (%s). use default (%d secs)\n",
                     ent_val, DEFAULT_ASYNC_JOB_TTL_SEC);
-                    ut_record_cubrid_utility_log_stderr (err_buf);
+              ut_record_cubrid_utility_log_stderr (err_buf);
             }
         }
       else if (strcasecmp (ent_name, "max_num_async_task") == 0)
