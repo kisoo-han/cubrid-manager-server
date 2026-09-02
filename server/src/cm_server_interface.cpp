@@ -424,9 +424,7 @@ cub_cm_extend_request (Json::Value &request, Json::Value &response)
 /*
  * task names that a client may run with "async":"yes". these are the
  * handful of utility-wrapping tasks that are known to run long enough
- * (compactdb, backupdb, ...) that blocking the caller for the whole
- * duration is undesirable. any other task ignores the "async" key and
- * runs the same way it always has.
+ * (compactdb, backupdb, ...) that blocking the caller
  */
 static const char *async_capable_tasks[] =
 {
@@ -464,6 +462,43 @@ is_async_capable_task (const string &task_name)
   for (int i = 0; async_capable_tasks[i] != NULL; i++)
     {
       if (task_name == async_capable_tasks[i])
+        {
+          return true;
+        }
+    }
+
+  return false;
+}
+
+/*
+ * task names for which only one instance may run against a given
+ * database at a time
+ */
+static const char *exclusive_db_tasks[] =
+{
+  "addvoldb",
+  "backupdb",
+  "checkdb",
+  "compactdb",
+  "copydb",
+  "createdb",
+  "deletedb",
+  "loaddb",
+  "optimizedb",
+  "renamedb",
+  "restoredb",
+  "startdb",
+  "stopdb",
+  "unloaddb",
+  NULL
+};
+
+static bool
+is_exclusive_db_task (const string &task_name)
+{
+  for (int i = 0; exclusive_db_tasks[i] != NULL; i++)
+    {
+      if (task_name == exclusive_db_tasks[i])
         {
           return true;
         }
@@ -739,9 +774,9 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
   static INT64 req_id = 0;
   string task_name = request.get ("task", "").asString ();
   string dbname = request.get ("dbname", "").asString ();
-  bool is_db_task = is_async_capable_task (task_name);
+  bool is_exclusive_task = is_exclusive_db_task (task_name);
 
-  if (is_db_task)
+  if (is_exclusive_task)
     {
       mutex_lock (cm_mutex);
       bool started = db_running_async_start (dbname, task_name);
@@ -760,7 +795,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
       mutex_unlock (cm_mutex);
       if (!acquired)
         {
-          if (is_db_task)
+          if (is_exclusive_task)
             {
               mutex_lock (cm_mutex);
               db_running_async_done (dbname);
@@ -773,10 +808,10 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
   async_request *pstmt = (async_request *) new (async_request);
   if (pstmt == NULL)
     {
-      if (is_db_task || no_wait)
+      if (is_exclusive_task || no_wait)
         {
           mutex_lock (cm_mutex);
-          if (is_db_task)
+          if (is_exclusive_task)
             {
               db_running_async_done (dbname);
             }
@@ -793,7 +828,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
   pstmt->status = 0;
   pstmt->created_at = time (NULL);
   pstmt->finished_at = 0;
-  pstmt->db_name = is_db_task ? dbname : "";
+  pstmt->db_name = is_exclusive_task ? dbname : "";
   pstmt->requester_id = request.get ("_ID", "").asString ();
   pstmt->holds_async_slot = no_wait;
   pstmt->is_long_async_job = false;
@@ -805,10 +840,10 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
     CreateThread (NULL, 0, cm_async_request_handler, pstmt, 0, &ThreadID);
   if (hHandles == NULL)
     {
-      if (is_db_task || no_wait)
+      if (is_exclusive_task || no_wait)
         {
           mutex_lock (cm_mutex);
-          if (is_db_task)
+          if (is_exclusive_task)
             {
               db_running_async_done (dbname);
             }
@@ -868,16 +903,10 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
   static INT64 req_id = 0;
   string task_name = request.get ("task", "").asString ();
   string dbname = request.get ("dbname", "").asString ();
-  bool is_db_task = is_async_capable_task (task_name);
+  bool is_exclusive_task = is_exclusive_db_task (task_name);
 
-  if (is_db_task)
+  if (is_exclusive_task)
     {
-      /*
-       * only one async-capable task may run against a given database
-       * at a time (e.g. compactdb 'demodb' must not start while
-       * backupdb 'demodb' is still running). fail fast here, before
-       * spawning a worker thread at all, if dbname is already busy.
-       */
       mutex_lock (cm_mutex);
       bool started = db_running_async_start (dbname, task_name);
       string running_task = started ? "" : db_running_async_task (dbname);
@@ -895,7 +924,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
       mutex_unlock (cm_mutex);
       if (!acquired)
         {
-          if (is_db_task)
+          if (is_exclusive_task)
             {
               mutex_lock (cm_mutex);
               db_running_async_done (dbname);
@@ -908,10 +937,10 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
   async_request *pstmt = (async_request *) new (async_request);
   if (pstmt == NULL)
     {
-      if (is_db_task || no_wait)
+      if (is_exclusive_task || no_wait)
         {
           mutex_lock (cm_mutex);
-          if (is_db_task)
+          if (is_exclusive_task)
             {
               db_running_async_done (dbname);
             }
@@ -931,10 +960,10 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
   if (err != 0)
     {
       LOG_ERROR ("cm_execute_request_async : fail to set thread mutex.");
-      if (is_db_task || no_wait)
+      if (is_exclusive_task || no_wait)
         {
           mutex_lock (cm_mutex);
-          if (is_db_task)
+          if (is_exclusive_task)
             {
               db_running_async_done (dbname);
             }
@@ -955,10 +984,10 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
   if (err != 0)
     {
       LOG_ERROR ("cm_execute_request_async : fail to set thread condition.");
-      if (is_db_task || no_wait)
+      if (is_exclusive_task || no_wait)
         {
           mutex_lock (cm_mutex);
-          if (is_db_task)
+          if (is_exclusive_task)
             {
               db_running_async_done (dbname);
             }
@@ -980,7 +1009,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
   pstmt->status = 0;
   pstmt->created_at = time (NULL);
   pstmt->finished_at = 0;
-  pstmt->db_name = is_db_task ? dbname : "";
+  pstmt->db_name = is_exclusive_task ? dbname : "";
   pstmt->requester_id = request.get ("_ID", "").asString ();
   pstmt->holds_async_slot = no_wait;
   pstmt->is_long_async_job = false;
@@ -993,10 +1022,10 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
 
   if (err != 0)
     {
-      if (is_db_task || no_wait)
+      if (is_exclusive_task || no_wait)
         {
           mutex_lock (cm_mutex);
-          if (is_db_task)
+          if (is_exclusive_task)
             {
               db_running_async_done (dbname);
             }
