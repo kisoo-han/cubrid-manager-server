@@ -385,7 +385,7 @@
 				>
 			</File>
 			<File
-				RelativePath="..\..\src\cm_text_encryption.c"
+				RelativePath="..\..\src\cm_text_encryption.cpp"
 				>
 			</File>
 			<File

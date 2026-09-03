@@ -30,7 +30,7 @@ LIBS += @SYS_LIBS@
 bin_PROGRAMS = cm_admin cub_manager
 
 cm_admin_SOURCES = \
-	$(DBMT_DIR)/cm_text_encryption.c \
+	$(DBMT_DIR)/cm_text_encryption.cpp \
 	$(DBMT_DIR)/cm_config.cpp \
 	$(DBMT_DIR)/cm_server_util.cpp \
 	$(DBMT_DIR)/cm_user.cpp \
@@ -44,7 +44,7 @@ cm_admin_LDFLAGS =  @CMDEP_LIB@ -D_FILE_OFFSET_BITS=64
 cub_manager_SOURCES = \
         $(DBMT_DIR)/cm_server_util.cpp \
         $(DBMT_DIR)/cm_autojob.cpp \
-        $(DBMT_DIR)/cm_text_encryption.c \
+        $(DBMT_DIR)/cm_text_encryption.cpp \
         $(DBMT_DIR)/cm_config.cpp \
         $(DBMT_DIR)/cm_job_task.cpp \
         $(DBMT_DIR)/cm_cmd_exec.cpp \
