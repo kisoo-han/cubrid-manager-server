@@ -346,7 +346,7 @@ static void _write_auto_update_log (char *line_buf, int is_success);
 static char *_get_format_time ();
 static void read_stdout_stderr_as_err (char *tmp_out_file, char *tmp_err_file,
 				       char *_dbmt_error);
-static int _run_child (const char *const argv[], int wait_flag,
+static int run_child_with_msg (const char *const argv[], int wait_flag,
 		       char *task_name, char *stdout_file, char *_dbmt_error,
 		       const char *envp[] = NULL);
 static int _check_backup_info (const char *conf_item[], int check_backupid,
@@ -421,13 +421,13 @@ _verify_user_passwd (char *dbname, char *dbuser, char *dbpasswd,
 }
 
 /*
- * _run_child () - run a child process (via run_child_env ()), read its
+ * run_child_with_msg () - run a child process (via run_child_env ()), read its
  * error file into _dbmt_error on failure.
  *
  * envp (in) : extra "KEY=VALUE" entries that apply only to this child
  */
 static int
-_run_child (const char *const argv[], int wait_flag, char *task_name,
+run_child_with_msg (const char *const argv[], int wait_flag, char *task_name,
 	    char *stdout_file, char *_dbmt_error, const char *envp[])
 {
   char tmp_out_file[PATH_MAX];
@@ -3299,7 +3299,7 @@ tsRenameDB (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc++] = NULL;
 
   strncpy (task_name, "renamedb", TASKNAME_LEN);
-  retval = _run_child (argv, 1, task_name, NULL, _dbmt_error);
+  retval = run_child_with_msg (argv, 1, task_name, NULL, _dbmt_error);
 
   if (tmpfile[0] != '\0')
     {
@@ -4275,7 +4275,7 @@ ts_checkdb (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc++] = NULL;
 
   strncpy (task_name, "checkdb", TASKNAME_LEN);
-  retval = _run_child (argv, 1, task_name, NULL, _dbmt_error);
+  retval = run_child_with_msg (argv, 1, task_name, NULL, _dbmt_error);
 
   return retval;
 }
@@ -7843,7 +7843,7 @@ ts_killtran (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc++] = NULL;
 
   strncpy (task_name, "killtran", TASKNAME_LEN);
-  retval = _run_child (argv, 1, task_name, NULL, _dbmt_error);
+  retval = run_child_with_msg (argv, 1, task_name, NULL, _dbmt_error);
   if (retval != ERR_NO_ERROR)
     {
       return retval;
@@ -7914,7 +7914,7 @@ ts_lockdb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   strncpy (task_name, "lockdb", TASKNAME_LEN);
 
-  retval = _run_child (argv, 1, task_name, NULL, _dbmt_error);
+  retval = run_child_with_msg (argv, 1, task_name, NULL, _dbmt_error);
   if (retval != ERR_NO_ERROR)
     {
       return retval;
@@ -10802,7 +10802,7 @@ run_csql_statement (const char *sql_stat, char *dbname, char *dbuser,
   {
     const char *extra_envp[] = TRANSACTION_NO_WAIT_MODE_ENVP;
 
-    retval = _run_child (argv, 1, task_name, outfilepath, _dbmt_error, extra_envp);
+    retval = run_child_with_msg (argv, 1, task_name, outfilepath, _dbmt_error, extra_envp);
   }
 
   return retval;
