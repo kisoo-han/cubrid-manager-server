@@ -11906,6 +11906,8 @@ ts_job_test (nvplist *req, nvplist *res, char *_dbmt_error)
   int i;
   nvplist *cli_response;
   const char *argvs[2];
+  char outfile[] = "outfile.test";
+  char errfile[] = "errfile.test";
 
   cli_response = nv_create (5, NULL, "\n", ":", "\n");
   for (i = ERR_NO_ERROR; i <= ERR_WARNING; i++)
@@ -11917,8 +11919,7 @@ ts_job_test (nvplist *req, nvplist *res, char *_dbmt_error)
   argvs[0] = "ping";
   argvs[1] = NULL;
 
-  ut_run_child ("ping", argvs, 1, "infile.test", "outfile.test",
-		"errfile.test", &i);
+  run_child_env (argvs, RUN_FOREGROUND, "infile.test", outfile, errfile, &i);
   unlink ("outfile.test");
   unlink ("errfile.test");
   return ERR_NO_ERROR;
