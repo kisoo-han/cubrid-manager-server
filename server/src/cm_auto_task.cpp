@@ -194,7 +194,7 @@ ts_get_server_version (nvplist *req, nvplist *res)
   argv[0] = cmd_name;
   argv[1] = NULL;
 
-  run_child (argv, 1, NULL, tmpfile, NULL, NULL);	/* cubrid_rel */
+  run_child_env (argv, RUN_FOREGROUND, NULL, tmpfile, NULL, NULL);	/* cubrid_rel */
 
   if ((infile = fopen (tmpfile, "r")) != NULL)
     {

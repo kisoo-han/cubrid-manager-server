@@ -312,7 +312,7 @@ aj_add_volume (char *dbname, const char *type, int increase,
   argv[argc++] = inc_str;
   argv[argc++] = dbname;
   argv[argc++] = NULL;
-  retval = run_child (argv, 1, NULL, NULL, NULL, NULL);    /* addvoldb  */
+  retval = run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, NULL);    /* addvoldb  */
 
   mytime = time (NULL);
   conf_get_dbmt_file (FID_AUTO_ADDVOLDB_LOG, log_file_name);
@@ -1342,7 +1342,7 @@ aj_execquery (autoexecquery_node *c)
     }
 
   gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "aj_execquery", TS_AUTOEXECQUERYERRLOG, PATH_MAX);
-  retval = run_child (argv, 1, NULL, NULL, cubrid_err_file, NULL);    /* csql auto-execute */
+  retval = run_child_env (argv, RUN_FOREGROUND, NULL, NULL, cubrid_err_file, NULL);    /* csql auto-execute */
   unlink (input_filename);
   if (retval != 0)
     {
@@ -1677,7 +1677,7 @@ aj_backupdb (autobackupdb_node *n)
       return;
     }
 
-  retval = run_child (argv, 1, inputfilepath, NULL, cubrid_err_file, NULL);    /* backupdb */
+  retval = run_child_env (argv, RUN_FOREGROUND, inputfilepath, NULL, cubrid_err_file, NULL);    /* backupdb */
   unlink (inputfilepath);
 
   if (read_error_file (cubrid_err_file, buf, sizeof (buf)) < 0)
@@ -1712,7 +1712,7 @@ aj_backupdb (autobackupdb_node *n)
       argv[1] = UTIL_OPTION_OPTIMIZEDB;
       argv[2] = n->dbname;
       argv[3] = NULL;
-      if (run_child (argv, 1, NULL, NULL, NULL, NULL) < 0)
+      if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, NULL) < 0)
         {
           /* optimizedb */
           sprintf (buf, "Failed to update statistics");

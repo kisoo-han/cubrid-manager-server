@@ -1589,7 +1589,7 @@ int ext_get_ha_apply_info (Json::Value &request, Json::Value &response)
   argv[7] = dbname.c_str();
   argv[8] = NULL;
 
-  run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);
+  run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, NULL);
 
   if ((retval=_read_apply_info_cmd_output (stdout_log_file, stderr_log_file, str_result)) != ERR_NO_ERROR)
     {

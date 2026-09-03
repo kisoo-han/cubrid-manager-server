@@ -2080,7 +2080,7 @@ is_cmserver_process (int pid, const char *module_name)
   argv[argc++] = "-e";
   argv[argc] = NULL;
 
-  if (run_child (argv, 1, NULL, result_file, NULL, NULL) < 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, result_file, NULL, NULL) < 0)
     {
       /* ps */
       return -1;

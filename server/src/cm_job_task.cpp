@@ -1112,7 +1112,7 @@ ts2_start_unicas (nvplist *in, nvplist *out, char *_dbmt_error)
   argv[argc++] = NULL;
 
   gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "broker_start", TS2_STARTBROKER, PATH_MAX);
-  if (run_child (argv, 1, NULL, NULL, cubrid_err_file, &rc) < 0 || rc != 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, cubrid_err_file, &rc) < 0 || rc != 0)
     {
       if (read_error_file (cubrid_err_file, _dbmt_error, -1) < 0)
         {
@@ -1609,7 +1609,7 @@ ts2_start_broker (nvplist *in, nvplist *out, char *_dbmt_error)
 
   gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "broker_start", TS2_STARTBROKER, PATH_MAX);
 
-  if (run_child (argv, 1, NULL, NULL, cubrid_err_file, &rc) < 0 || rc != 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, cubrid_err_file, &rc) < 0 || rc != 0)
     {
       if (read_error_file (cubrid_err_file, _dbmt_error, -1) < 0)
         {
@@ -3061,7 +3061,7 @@ tsDeleteDB (nvplist *req, nvplist *res, char *_dbmt_error)
   get_dbvoldir (dbvolpath, sizeof (dbvolpath), dbname, cubrid_err_file);
   get_dblogdir (dblogpath, sizeof (dblogpath), dbname, cubrid_err_file);
 
-  retval = run_child (argv, 1, NULL, NULL, cubrid_err_file, NULL);    /* deletedb */
+  retval = run_child_env (argv, RUN_FOREGROUND, NULL, NULL, cubrid_err_file, NULL);    /* deletedb */
 
   if (read_error_file (cubrid_err_file, _dbmt_error, DBMT_ERROR_MSG_SIZE) < 0)
     {
@@ -3666,7 +3666,7 @@ tsRunAddvoldb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   gen_tempfile_path (err_file, sco.dbmt_tmp_dir, "runaddvoldb_err_tmp", TS_ADDVOLDB, PATH_MAX);
 
-  ret = run_child (argv, 1, NULL, NULL, err_file, NULL);    /* addvoldb */
+  ret = run_child_env (argv, RUN_FOREGROUND, NULL, NULL, err_file, NULL);    /* addvoldb */
   if (read_error_file (err_file, _dbmt_error, DBMT_ERROR_MSG_SIZE) < 0)
     {
       if (access (err_file, F_OK) == 0)
@@ -3879,7 +3879,7 @@ ts_copydb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "copydb_err_tmp", TS_COPYDB, PATH_MAX);
 
-  retval = run_child (argv, 1, NULL, NULL, cubrid_err_file, NULL);    /* copydb */
+  retval = run_child_env (argv, RUN_FOREGROUND, NULL, NULL, cubrid_err_file, NULL);    /* copydb */
   if (adv_flag)
     {
       unlink (tmpfile);
@@ -3934,7 +3934,7 @@ ts_copydb (nvplist *req, nvplist *res, char *_dbmt_error)
       argv[1] = UTIL_OPTION_DELETEDB;
       argv[2] = srcdbname;
       argv[3] = NULL;
-      retval = run_child (argv, 1, NULL, NULL, NULL, NULL);    /* deletedb */
+      retval = run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, NULL);    /* deletedb */
       if (retval < 0)
 	{
 	  strcpy (_dbmt_error, argv[0]);
@@ -4042,7 +4042,7 @@ ts_plandump (nvplist *req, nvplist *res, char *_dbmt_error)
   */
   gen_tempfile_path (tmpfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_PLANDUMP, PATH_MAX);
 
-  if (run_child (argv, 1, NULL, tmpfilepath, cubrid_err_file, NULL) < 0)    /* plandump */
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, tmpfilepath, cubrid_err_file, NULL) < 0)    /* plandump */
     {
       strcpy (_dbmt_error, argv[0]);
       retval = ERR_SYSTEM_CALL;
@@ -4152,7 +4152,7 @@ ts_paramdump (nvplist *req, nvplist *res, char *_dbmt_error)
   */
   gen_tempfile_path (tmpfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_PARAMDUMP, PATH_MAX);
 
-  if (run_child (argv, 1, NULL, tmpfilepath, cubrid_err_file, NULL) < 0)    /* paramdump */
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, tmpfilepath, cubrid_err_file, NULL) < 0)    /* paramdump */
     {
       strcpy (_dbmt_error, argv[0]);
       retval = ERR_SYSTEM_CALL;
@@ -4643,7 +4643,7 @@ ts_compactdb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   gen_tempfile_path (err_file, sco.dbmt_tmp_dir, "compactdb_err_tmp", TS_COMPACTDB, PATH_MAX);
 
-  if (run_child (argv, 1, NULL, out_file, err_file, &exit_code) < 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, out_file, err_file, &exit_code) < 0)
     {
       /* compactdb */
       snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "%s", argv[0]);
@@ -4817,7 +4817,7 @@ ts_backupdb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "backupdb_err_tmp", TS_BACKUPDB, PATH_MAX);
 
-  if (run_child (argv, 1, inputfilepath, NULL, cubrid_err_file, NULL) < 0)
+  if (run_child_env (argv, RUN_FOREGROUND, inputfilepath, NULL, cubrid_err_file, NULL) < 0)
     {
       /* backupdb */
       strcpy (_dbmt_error, argv[0]);
@@ -5086,7 +5086,7 @@ ts_unloaddb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "unloaddb_err_tmp", TS_UNLOADDB, PATH_MAX);
 
-  if (run_child (argv, 1, NULL, NULL, cubrid_err_file, NULL) < 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, cubrid_err_file, NULL) < 0)
     {
       /* unloaddb */
       strcpy (_dbmt_error, argv[0]);
@@ -5536,7 +5536,7 @@ ts_loaddb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "loaddb_err_tmp", TS_LOADDB, PATH_MAX);
 
-  retval = run_child (argv, 1, NULL, tmpfile, cubrid_err_file, &exit_status);    /* loaddb */
+  retval = run_child_env (argv, RUN_FOREGROUND, NULL, tmpfile, cubrid_err_file, &exit_status);    /* loaddb */
 
   if (retval < 0)
     {
@@ -5733,7 +5733,7 @@ ts_restoredb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "restoredb_err_tmp", TS_RESTOREDB, PATH_MAX);
 
-  if (run_child (argv, 1, NULL, NULL, cubrid_err_file, &status) < 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, cubrid_err_file, &status) < 0)
     {
       strcpy_limit (_dbmt_error, argv[0], DBMT_ERROR_MSG_SIZE);
       if (access (cubrid_err_file, F_OK) == 0)
@@ -5810,9 +5810,9 @@ ts_backup_vol_info (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc++] = NULL;
 
 #if defined(WINDOWS)
-  ret = run_child (argv, 1, NULL, tmpfile, NULL, NULL);    /* restoredb -t */
+  ret = run_child_env (argv, RUN_FOREGROUND, NULL, tmpfile, NULL, NULL);    /* restoredb -t */
 #else
-  ret = run_child (argv, 1, "/dev/null", tmpfile, NULL, &status);    /* restoredb -t */
+  ret = run_child_env (argv, RUN_FOREGROUND, "/dev/null", tmpfile, NULL, &status);    /* restoredb -t */
 #endif
   if (ret < 0)
     {
@@ -5975,7 +5975,7 @@ tsGetEnvironment (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[0] = cmd_name;
   argv[1] = NULL;
 
-  run_child (argv, 1, NULL, tmpfile, NULL, NULL);    /* cubrid_rel */
+  run_child_env (argv, RUN_FOREGROUND, NULL, tmpfile, NULL, NULL);    /* cubrid_rel */
 
   if ((infile = fopen (tmpfile, "r")) != NULL)
     {
@@ -6000,7 +6000,7 @@ tsGetEnvironment (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[1] = "--version";
   argv[2] = NULL;
 
-  run_child (argv, 1, NULL, tmpfile, NULL, NULL);    /* cubrid_broker --version */
+  run_child_env (argv, RUN_FOREGROUND, NULL, tmpfile, NULL, NULL);    /* cubrid_broker --version */
 
   if ((infile = fopen (tmpfile, "r")) != NULL)
     {
@@ -7337,7 +7337,7 @@ ts_get_tran_info (nvplist *req, nvplist *res, char *_dbmt_error)
 
   argv[argc++] = NULL;
 
-  retval = run_child (argv, 1, NULL, tmpfile, errfile, NULL);    /* tranlist */
+  retval = run_child_env (argv, RUN_FOREGROUND, NULL, tmpfile, errfile, NULL);    /* tranlist */
   if (retval < 0)
     {
       strncpy (_dbmt_error, argv[0], DBMT_ERROR_MSG_SIZE);
@@ -9572,7 +9572,7 @@ ts_analyzecaslog (nvplist *cli_request, nvplist *cli_response,
   argv[arg_index++] = NULL;
   gen_tempfile_path (diag_err_file, sco.dbmt_tmp_dir, "analyzecaslog_err", TS_ANALYZECASLOG, PATH_MAX);
 
-  retval = run_child (argv, 1, NULL, NULL, diag_err_file, NULL);    /* broker_log_top */
+  retval = run_child_env (argv, RUN_FOREGROUND, NULL, NULL, diag_err_file, NULL);    /* broker_log_top */
   if (read_error_file (diag_err_file, diag_error, DBMT_ERROR_MSG_SIZE) < 0)
     {
       if (access (diag_err_file, F_OK) == 0)
@@ -9946,9 +9946,9 @@ ts_executecasrunner (nvplist *cli_request, nvplist *cli_response,
   argv[++i] = NULL;
 
 #if defined (WINDOWS)
-  ret = run_child (argv, 1, NULL, NULL, NULL, NULL);
+  ret = run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, NULL);
 #else
-  ret = run_child (argv, 1, NULL, NULL, NULL, &status);
+  ret = run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, &status);
 #endif
   if (ret < 0 || status != EXIT_SUCCESS)
     {
@@ -10609,7 +10609,7 @@ cmd_heartbeat_deact (char *_dbmt_error)
 
   gen_tempfile_path (outputfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_HEARTBEAT_DEACT, PATH_MAX);
 
-  if (run_child (argv, 1, NULL, outputfilepath, cubrid_err_file, NULL) < 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, outputfilepath, cubrid_err_file, NULL) < 0)
     {
       /* heartbeat deact */
       strcpy (_dbmt_error, argv[0]);
@@ -10674,7 +10674,7 @@ cmd_heartbeat_act (char *_dbmt_error)
 
   gen_tempfile_path (outputfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_HEARTBEAT_ACT, PATH_MAX);
 
-  if (run_child (argv, 1, NULL, outputfilepath, cubrid_err_file, NULL) < 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, outputfilepath, cubrid_err_file, NULL) < 0)
     {
       /* heartbeat act */
       strcpy (_dbmt_error, argv[0]);
@@ -11180,7 +11180,7 @@ cmd_changemode (char *dbname, char *modify, char *force,
 
   argv[argc++] = NULL;
 
-  if (run_child (argv, 1, NULL, tmpfilepath, cubrid_err_file, NULL) < 0)    /* changemode */
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, tmpfilepath, cubrid_err_file, NULL) < 0)    /* changemode */
     {
       strcpy_limit (_dbmt_error, argv[0], DBMT_ERROR_MSG_SIZE);
       retval = ERR_SYSTEM_CALL;
@@ -11253,7 +11253,7 @@ ts_role_change (nvplist *req, nvplist *res, char *_dbmt_error)
   gen_tempfile_path (cmdfile, sco.dbmt_tmp_dir, "DBMT_task", TS_ROLE_CHANGE, PATH_MAX);
 
   /* save the process info before heartbeat deact operation. */
-  if (run_child (argv, 1, NULL, cmdfile, NULL, NULL) < 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, cmdfile, NULL, NULL) < 0)
     {
       strcpy_limit (_dbmt_error, argv[0], DBMT_ERROR_MSG_SIZE);
       return ERR_SYSTEM_CALL;
@@ -12053,7 +12053,7 @@ cmd_heartbeat_list (T_HA_SERVER_INFO_ALL **all_info, int get_all_dbmode,
   gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "heartbeat_list_err", TS_HEARTBEAT_LIST, PATH_MAX);
   gen_tempfile_path (outputfilepath, sco.dbmt_tmp_dir, "DBMT_task", TS_HEARTBEAT_LIST, PATH_MAX);
 
-  if (run_child (argv, 1, NULL, outputfilepath, cubrid_err_file, NULL) < 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, outputfilepath, cubrid_err_file, NULL) < 0)
     {
       /* heartbeat list */
       strcpy (_dbmt_error, argv[0]);
@@ -14385,7 +14385,7 @@ ts_get_shard_info (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc++] = "-f";
   argv[argc++] = NULL;
 
-  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);    /* start shard */
+  pid = run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, NULL);    /* start shard */
 
   if (pid < 0)
     {
@@ -14535,7 +14535,7 @@ ts_get_shard_status (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc++] = sname;
   argv[argc++] = NULL;
 
-  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);    /* start shard */
+  pid = run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, NULL);    /* start shard */
 
   if (pid < 0)
     {
@@ -14674,7 +14674,7 @@ ts_shard_start (nvplist *req, nvplist *res, char *err_buf)
 
   argv[argc++] = NULL;
 
-  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);    /* start shard */
+  pid = run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, NULL);    /* start shard */
 
   if (pid < 0)
     {
@@ -14738,7 +14738,7 @@ ts_shard_stop (nvplist *req, nvplist *res, char *err_buf)
 
   argv[argc++] = NULL;
 
-  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);    /* start shard */
+  pid = run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, NULL);    /* start shard */
 
   if (pid < 0)
     {
@@ -14897,7 +14897,7 @@ ts_broker_changer (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc] = NULL;
 
   // run "broker_changer"
-  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);
+  pid = run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, NULL);
 
   if (pid < 0)
     {
@@ -15283,7 +15283,7 @@ ts_ha_start (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc] = NULL;
 
   // run "cubrid heartbeat start [dbname]"
-  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);
+  pid = run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, NULL);
 
   if (pid < 0)
     {
@@ -15344,7 +15344,7 @@ ts_ha_stop (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc] = NULL;
 
   // run "cubrid heartbeat stop [dbname]"
-  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);
+  pid = run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, NULL);
 
   if (pid < 0)
     {
@@ -15394,7 +15394,7 @@ ts_ha_status (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc] = NULL;
 
   // run "cubrid heartbeat status"
-  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);
+  pid = run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, NULL);
 
   if (pid < 0)
     {
@@ -15460,7 +15460,7 @@ ts_ha_reload (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc] = NULL;
 
   // run "cubrid heartbeat reload"
-  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);
+  pid = run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, NULL);
 
   if (pid < 0)
     {
@@ -15545,9 +15545,9 @@ ts_ha_copylogdb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   // run "cubrid heartbeat copylogdb <start|stop> dbname peer_node"
 #if defined (WINDOWS)
-  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);
+  pid = run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, NULL);
 #else
-  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, &status);
+  pid = run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, &status);
 #endif
 
   if (pid < 0)
@@ -15638,9 +15638,9 @@ ts_ha_applylogdb (nvplist *req, nvplist *res, char *_dbmt_error)
 
   // run "cubrid heartbeat applylogdb <start|stop> dbname peer_node"
 #if defined (WINDOWS)
-  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);
+  pid = run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, NULL);
 #else
-  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, &status);
+  pid = run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, &status);
 #endif
 
   if (pid < 0)
@@ -17117,8 +17117,8 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
 #else
   {
     /*
-     * run_child_env ()'s stdout_file/stderr_file are char *, not
-     * const char * (unlike run_child ()'s)
+     * run_child_env ()'s stdout_file/stderr_file are char *, so a
+     * string literal can't be passed directly here.
      */
     char devnull_out[] = "/dev/null";
     char devnull_err[] = "/dev/null";
@@ -17702,7 +17702,7 @@ is_ha_updates_disabled (char *dbname, char *_dbmt_error)
   argv[argc++] = "status";
   argv[argc++] = NULL;
 
-  if (run_child (argv, 1, NULL, outfile, NULL, &exit_code) < 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, outfile, NULL, &exit_code) < 0)
     {
       snprintf (_dbmt_error, DBMT_ERROR_MSG_SIZE, "command failed: cubrid heartbeat status");
       unlink (outfile);

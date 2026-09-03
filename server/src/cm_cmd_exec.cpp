@@ -173,7 +173,7 @@ void find_and_parse_cub_admin_version (int &major_version, int &minor_version, c
   argv[1] = "--version";
   argv[2] = NULL;
 
-  run_child (argv, 1, NULL, tmpfile, NULL, NULL);
+  run_child_env (argv, RUN_FOREGROUND, NULL, tmpfile, NULL, NULL);
   if ((infile = fopen (tmpfile, "r")) == NULL)
     {
       LOG_ERROR ("Unable to determine cubrid version due to a system error. Set version to %d.%d defined by default.",
@@ -273,7 +273,7 @@ cmd_spacedb (const char *dbname, T_CUBRID_MODE mode)
   argv[argc++] = NULL;
 
   gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "cmd_spacedb_err", TS_DB_SPACE_INFO, PATH_MAX);
-  run_child (argv, 1, NULL, NULL, cubrid_err_file, NULL);    /* spacedb */
+  run_child_env (argv, RUN_FOREGROUND, NULL, NULL, cubrid_err_file, NULL);    /* spacedb */
   read_error_file (cubrid_err_file, err_message, ERR_MSG_SIZE);
   res->set_err_msg (err_message);
   read_spacedb_output (res, out_file);
@@ -378,7 +378,7 @@ cmd_stop_server (char *dbname, char *err_buf, int err_buf_size)
   argv[2] = PRINT_CMD_STOP;
   argv[3] = dbname;
   argv[4] = NULL;
-  if (run_child (argv, 1, NULL, NULL, NULL, NULL) < 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, NULL) < 0)
     {
       /* stop_server */
       if (err_buf)
