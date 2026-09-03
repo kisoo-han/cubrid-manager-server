@@ -441,7 +441,7 @@ uReadSystemConfig (void)
         {
           int long_job_sec = atoi (ent_val);
 
-          if (MIN_ASYNC_LONG_JOB_SEC <= long_job_sec && long_job_sec < MAX_ASYNC_LONG_JOB_SEC)
+          if (MIN_ASYNC_LONG_JOB_SEC <= long_job_sec && long_job_sec <= MAX_ASYNC_LONG_JOB_SEC)
             {
               sco.iAsyncLongJobSec = long_job_sec;
             }
