@@ -510,6 +510,59 @@ is_exclusive_db_task (const string &task_name)
 static map <std::string, std::string> db_running_async;
 
 /*
+ * exclusive_dbnames_for_request () - the set of database names `task_name`
+ *   must hold the per-db exclusivity lock on before it's allowed to run.
+ *   locks both "srcdbname"/"destdbname" for copydb
+ */
+static vector <string>
+exclusive_dbnames_for_request (const Json::Value &request, const string &task_name)
+{
+  vector <string> names;
+
+  if (task_name == "copydb")
+    {
+      string src = request.get ("srcdbname", "").asString ();
+      string dest = request.get ("destdbname", "").asString ();
+
+      if (!src.empty ())
+        {
+          names.push_back (src);
+        }
+      if (!dest.empty () && dest != src)
+        {
+          names.push_back (dest);
+        }
+    }
+  else
+    {
+      names.push_back (request.get ("dbname", "").asString ());
+    }
+
+  return names;
+}
+
+/*
+ * join_dbnames () - comma-join a request's exclusive dbname(s), for
+ *   logging/diagnostics only (copydb can carry two).
+ */
+static string
+join_dbnames (const vector <string> &dbnames)
+{
+  string joined;
+
+  for (size_t i = 0; i < dbnames.size (); i++)
+    {
+      if (!joined.empty ())
+        {
+          joined += ",";
+        }
+      joined += dbnames[i];
+    }
+
+  return joined;
+}
+
+/*
  * is_db_running_async () - pure query: is some async-capable task
  * currently running against dbname? caller must hold cm_mutex.
  */
@@ -520,43 +573,61 @@ is_db_running_async (const std::string &dbname)
          && db_running_async.find (dbname) != db_running_async.end ();
 }
 
-/*
- * db_running_async_start () - mark dbname as running task_name.
- * caller must hold cm_mutex.
- */
-static bool
-db_running_async_start (const std::string &dbname, const std::string &task_name)
-{
-  if (dbname.empty ())
-    {
-      return true;
-    }
-  if (is_db_running_async (dbname))
-    {
-      return false;
-    }
-  db_running_async[dbname] = task_name;
-  return true;
-}
-
-/*
- * db_running_async_done () - clear dbname's running-task marker, if any.
- *   caller must hold cm_mutex.
- */
-static void
-db_running_async_done (const string &dbname)
-{
-  if (!dbname.empty ())
-    {
-      db_running_async.erase (dbname);
-    }
-}
-
 static std::string
 db_running_async_task (const std::string &dbname)
 {
   map <std::string, std::string> ::iterator it = db_running_async.find (dbname);
   return (it != db_running_async.end ()) ? it->second : std::string ();
+}
+
+/*
+ * db_running_async_start ()
+ *  caller must hold cm_mutex.
+ */
+static bool
+db_running_async_start (const vector <string> &dbnames, const string &task_name,
+                        string *busy_name = NULL, string *busy_task = NULL)
+{
+  for (size_t i = 0; i < dbnames.size (); i++)
+    {
+      if (is_db_running_async (dbnames[i]))
+        {
+          if (busy_name != NULL)
+            {
+              *busy_name = dbnames[i];
+            }
+          if (busy_task != NULL)
+            {
+              *busy_task = db_running_async_task (dbnames[i]);
+            }
+          return false;
+        }
+    }
+
+  for (size_t i = 0; i < dbnames.size (); i++)
+    {
+      if (!dbnames[i].empty ())
+        {
+          db_running_async[dbnames[i]] = task_name;
+        }
+    }
+  return true;
+}
+
+/*
+ * db_running_async_done () - clear the running-task marker for every
+ *   (non-empty) name in `dbnames`, if any. caller must hold cm_mutex.
+ */
+static void
+db_running_async_done (const vector <string> &dbnames)
+{
+  for (size_t i = 0; i < dbnames.size (); i++)
+    {
+      if (!dbnames[i].empty ())
+        {
+          db_running_async.erase (dbnames[i]);
+        }
+    }
 }
 
 static int
@@ -628,7 +699,7 @@ class async_request
     int status;
     time_t created_at;
     time_t finished_at;
-    std::string db_name;
+    std::vector <std::string> db_names;
     std::string requester_id;
     bool holds_async_slot;
     bool is_long_async_job;
@@ -680,7 +751,7 @@ reap_stale_async_jobs (void)
                      "running for %d sec, past async_long_job_sec (%d sec); "
                      "its worker thread cannot be safely cancelled, so it is being "
                      "left in request_map until it actually finishes.",
-                     (long long) cur->uuid, task_name.c_str (), cur->db_name.c_str (),
+                     (long long) cur->uuid, task_name.c_str (), join_dbnames (cur->db_names).c_str (),
                      (int) (now - cur->created_at), sco.iAsyncLongJobSec);
 
           /* log this only once per job, not on every reap_stale_async_jobs () call */
@@ -738,7 +809,7 @@ cm_async_request_handler (void *lpArg)
   async_param->finished_at = time (NULL);
   async_param->status = 1;
 
-  db_running_async_done (async_param->db_name);
+  db_running_async_done (async_param->db_names);
 
   if (async_param->holds_async_slot)
     {
@@ -780,18 +851,18 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
   DWORD dwWaitResult;
   static INT64 req_id = 0;
   string task_name = request.get ("task", "").asString ();
-  string dbname = request.get ("dbname", "").asString ();
+  vector <string> dbnames = exclusive_dbnames_for_request (request, task_name);
   bool is_exclusive_task = is_exclusive_db_task (task_name);
 
   if (is_exclusive_task)
     {
+      string busy_name, busy_task;
       mutex_lock (cm_mutex);
-      bool started = db_running_async_start (dbname, task_name);
-      string running_task = started ? "" : db_running_async_task (dbname);
+      bool started = db_running_async_start (dbnames, task_name, &busy_name, &busy_task);
       mutex_unlock (cm_mutex);
       if (!started)
         {
-          return build_db_busy_response (response, dbname, running_task);
+          return build_db_busy_response (response, busy_name, busy_task);
         }
     }
 
@@ -805,7 +876,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
           if (is_exclusive_task)
             {
               mutex_lock (cm_mutex);
-              db_running_async_done (dbname);
+              db_running_async_done (dbnames);
               mutex_unlock (cm_mutex);
             }
           return build_async_task_limit_response (response);
@@ -820,7 +891,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
           mutex_lock (cm_mutex);
           if (is_exclusive_task)
             {
-              db_running_async_done (dbname);
+              db_running_async_done (dbnames);
             }
           if (no_wait)
             {
@@ -835,7 +906,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
   pstmt->status = 0;
   pstmt->created_at = time (NULL);
   pstmt->finished_at = 0;
-  pstmt->db_name = is_exclusive_task ? dbname : "";
+  pstmt->db_names = is_exclusive_task ? dbnames : vector <string> ();
   pstmt->requester_id = request.get ("_ID", "").asString ();
   pstmt->holds_async_slot = no_wait;
   pstmt->is_long_async_job = false;
@@ -852,7 +923,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
           mutex_lock (cm_mutex);
           if (is_exclusive_task)
             {
-              db_running_async_done (dbname);
+              db_running_async_done (dbnames);
             }
           if (no_wait)
             {
@@ -909,18 +980,18 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
   timespec to;
   static INT64 req_id = 0;
   string task_name = request.get ("task", "").asString ();
-  string dbname = request.get ("dbname", "").asString ();
+  vector <string> dbnames = exclusive_dbnames_for_request (request, task_name);
   bool is_exclusive_task = is_exclusive_db_task (task_name);
 
   if (is_exclusive_task)
     {
+      string busy_name, busy_task;
       mutex_lock (cm_mutex);
-      bool started = db_running_async_start (dbname, task_name);
-      string running_task = started ? "" : db_running_async_task (dbname);
+      bool started = db_running_async_start (dbnames, task_name, &busy_name, &busy_task);
       mutex_unlock (cm_mutex);
       if (!started)
         {
-          return build_db_busy_response (response, dbname, running_task);
+          return build_db_busy_response (response, busy_name, busy_task);
         }
     }
 
@@ -934,7 +1005,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
           if (is_exclusive_task)
             {
               mutex_lock (cm_mutex);
-              db_running_async_done (dbname);
+              db_running_async_done (dbnames);
               mutex_unlock (cm_mutex);
             }
           return build_async_task_limit_response (response);
@@ -949,7 +1020,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
           mutex_lock (cm_mutex);
           if (is_exclusive_task)
             {
-              db_running_async_done (dbname);
+              db_running_async_done (dbnames);
             }
           if (no_wait)
             {
@@ -972,7 +1043,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
           mutex_lock (cm_mutex);
           if (is_exclusive_task)
             {
-              db_running_async_done (dbname);
+              db_running_async_done (dbnames);
             }
           if (no_wait)
             {
@@ -996,7 +1067,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
           mutex_lock (cm_mutex);
           if (is_exclusive_task)
             {
-              db_running_async_done (dbname);
+              db_running_async_done (dbnames);
             }
           if (no_wait)
             {
@@ -1016,7 +1087,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
   pstmt->status = 0;
   pstmt->created_at = time (NULL);
   pstmt->finished_at = 0;
-  pstmt->db_name = is_exclusive_task ? dbname : "";
+  pstmt->db_names = is_exclusive_task ? dbnames : vector <string> ();
   pstmt->requester_id = request.get ("_ID", "").asString ();
   pstmt->holds_async_slot = no_wait;
   pstmt->is_long_async_job = false;
@@ -1034,7 +1105,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
           mutex_lock (cm_mutex);
           if (is_exclusive_task)
             {
-              db_running_async_done (dbname);
+              db_running_async_done (dbnames);
             }
           if (no_wait)
             {
@@ -1084,9 +1155,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
   pthread_mutex_unlock (pstmt->mutex);
   if (!finished)
     {
-      string dbname, task_name;
-      task_name = request.get ("task", "unknown").asString();
-      dbname = request.get ("dbname", "").asString();
+      string task_name = request.get ("task", "unknown").asString();
       /* register the still-running job so gettaskstatus can
        * find it later. the original code returned here without ever
        */
@@ -1097,7 +1166,7 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
       put_uuid (response, pstmt->uuid);
       response["job-status"] = "running";
       LOG_ERROR ("cm_execute_request_async : Timeout %ld secs: task '%s'. %s",
-		time_out, task_name.c_str(), dbname.c_str ());
+		time_out, task_name.c_str(), join_dbnames (dbnames).c_str ());
       return build_server_header (response, ERR_WITH_MSG, "timeout");
     }
 
@@ -1267,7 +1336,7 @@ ext_get_server_status (Json::Value &request, Json::Value &response)
           Json::Value j;
           put_uuid (j, cur->uuid);
           j["task"] = cur->request.get ("task", "unknown").asString ();
-          j["db_name"] = cur->db_name;
+          j["db_name"] = join_dbnames (cur->db_names);
           j["requester_id"] = cur->requester_id;
           j["elapsed_sec"] = elapsed_sec;
           long_job_list.append (j);
