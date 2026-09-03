@@ -101,6 +101,9 @@ typedef unsigned __int64 uint64_t;
 #define STRTOK(buf,delim,saveptr)  strtok_r (buf, delim, saveptr)
 #endif
 
+#define RUN_FOREGROUND 1
+#define RUN_BACKGROUND 0
+
 typedef enum
 {
   TIME_STR_FMT_DATE = NV_ADD_DATE,

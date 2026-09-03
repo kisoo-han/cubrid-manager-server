@@ -423,7 +423,7 @@ cmd_start_master (void)
   argv[0] = cmd_name;
   argv[1] = NULL;
 
-  pid = run_child (argv, 0, NULL, NULL, NULL, NULL);    /* cub_master */
+  pid = run_child_env (argv, RUN_BACKGROUND, NULL, NULL, NULL, NULL);    /* cub_master */
   SLEEP_MILISEC (0, 500);
 }
 

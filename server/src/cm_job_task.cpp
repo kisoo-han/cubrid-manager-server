@@ -2839,7 +2839,7 @@ tsCreateDB (nvplist *req, nvplist *res, char *_dbmt_error)
 
   gen_tempfile_path (createdb_err_file, sco.dbmt_tmp_dir, "createdb_err_file", TS_CREATEDB, PATH_MAX);
 
-  retval = run_child_env (argv, 1, NULL, NULL, createdb_err_file, NULL);    /* createdb */
+  retval = run_child_env (argv, RUN_FOREGROUND, NULL, NULL, createdb_err_file, NULL);    /* createdb */
 
   if (read_error_file (createdb_err_file, _dbmt_error, DBMT_ERROR_MSG_SIZE) < 0)
     {
@@ -11314,7 +11314,7 @@ ts_role_change (nvplist *req, nvplist *res, char *_dbmt_error)
 	      cmd_argv[i] = tok[i];
 	    }
 
-	  if (run_child (cmd_argv, 0, NULL, NULL, NULL, NULL) < 0)
+	  if (run_child_env (cmd_argv, RUN_BACKGROUND, NULL, NULL, NULL, NULL) < 0)
 	    {
 	      retval = ERR_SYSTEM_CALL;
 	      goto error_return;
@@ -15863,7 +15863,7 @@ ts_auto_update (nvplist *req, nvplist *res, char *_dbmt_error)
   sprintf (output_log, "%scms.autoupdate.log", path);
 
 #ifdef WINDOWS
-  ret_val = run_child (argv, 0, NULL, output_log, err_log, NULL);
+  ret_val = run_child_env (argv, RUN_BACKGROUND, NULL, output_log, err_log, NULL);
 
 #else
   sprintf (cmd, "%s >%s 2>%s", shell_name, output_log, err_log);
