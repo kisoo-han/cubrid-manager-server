@@ -8695,7 +8695,7 @@ ts_trigger_operation (nvplist *req, nvplist *res, char *_dbmt_error)
   {
     const char *extra_envp[] = TRANSACTION_NO_WAIT_MODE_ENVP;
 
-    retval = run_child_env (argv, 1, NULL, NULL, cubrid_err_file, NULL, extra_envp);    /* csql - trigger */
+    retval = run_child_env (argv, RUN_FOREGROUND, NULL, NULL, cubrid_err_file, NULL, extra_envp);    /* csql - trigger */
   }
   if (strlen (input_file) > 0)
     {
@@ -9998,9 +9998,9 @@ ts_executecasrunner (nvplist *cli_request, nvplist *cli_response,
 
 #if defined (WINDOWS)
     status = EXIT_SUCCESS;
-    ret = run_child_env (argv, 1, NULL, NULL, NULL, NULL, extra_envp);
+    ret = run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, NULL, extra_envp);
 #else
-    ret = run_child_env (argv, 1, NULL, NULL, NULL, &status, extra_envp);
+    ret = run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, &status, extra_envp);
 #endif
   }
 
@@ -11657,9 +11657,9 @@ ts_run_script (nvplist *req, nvplist *res, char *_dbmt_error)
 
   /* run *.bat or *.sh. */
 #if defined (WINDOWS)
-  ret = run_child_env (argv, 1, NULL, outfile, errfile, NULL, extra_envp);
+  ret = run_child_env (argv, RUN_FOREGROUND, NULL, outfile, errfile, NULL, extra_envp);
 #else
-  ret = run_child_env (argv, 1, NULL, outfile, errfile, &status, extra_envp);
+  ret = run_child_env (argv, RUN_FOREGROUND, NULL, outfile, errfile, &status, extra_envp);
 #endif
   if (ret < 0 || status != EXIT_SUCCESS)
     {
@@ -17113,7 +17113,7 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   argv[argc++] = NULL;
 
 #if defined (WINDOWS)
-  ret_val = run_child_env (argv, 0, NULL, NULL, NULL, NULL);
+  ret_val = run_child_env (argv, RUN_BACKGROUND, NULL, NULL, NULL, NULL);
 #else
   {
     /*
@@ -17123,7 +17123,7 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
     char devnull_out[] = "/dev/null";
     char devnull_err[] = "/dev/null";
 
-    ret_val = run_child_env (argv, 0, NULL, devnull_out, devnull_err, &status);
+    ret_val = run_child_env (argv, RUN_BACKGROUND, NULL, devnull_out, devnull_err, &status);
   }
 #endif
 
