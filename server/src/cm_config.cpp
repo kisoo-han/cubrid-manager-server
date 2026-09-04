@@ -405,8 +405,6 @@ uReadSystemConfig (void)
         }
       else if (strcasecmp (ent_name, "async_job_ttl_sec") == 0)
         {
-          char err_buf[DBMT_ERROR_MSG_SIZE];
-
           int ttl = atoi (ent_val);
           if (MIN_ASYNC_JOB_TTL_SEC <= ttl)
             {
@@ -415,11 +413,6 @@ uReadSystemConfig (void)
           else
             {
               sco.iAsyncJobTtlSec = DEFAULT_ASYNC_JOB_TTL_SEC;
-              snprintf (err_buf, DBMT_ERROR_MSG_SIZE,
-                    "CUBRID Manager Server: invalid async_job_ttl_sec in cm.conf (%s). use default (%d secs)\n",
-                    ent_val, DEFAULT_ASYNC_JOB_TTL_SEC);
-              ut_record_cubrid_utility_log_stderr (err_buf);
-              return -1;
             }
         }
       else if (strcasecmp (ent_name, "max_num_async_task") == 0)
@@ -427,15 +420,12 @@ uReadSystemConfig (void)
           int max_task = atoi (ent_val);
           if (max_task < 1 || max_task > CMS_MAX_NUM_ASYNC_TASK_LIMIT)
             {
-              char err_buf[DBMT_ERROR_MSG_SIZE];
-
-              snprintf (err_buf, DBMT_ERROR_MSG_SIZE,
-                        "CUBRID Manager Server : max_num_async_task(%d) in cm.conf is invalid. it must be between 1 and %d.\n",
-                        max_task, CMS_MAX_NUM_ASYNC_TASK_LIMIT);
-              ut_record_cubrid_utility_log_stderr (err_buf);
-              return -1;
+              sco.iMaxNumAsyncTask = DEFAULT_MAX_NUM_ASYNC_TASK;
             }
-          sco.iMaxNumAsyncTask = max_task;
+          else
+            {
+              sco.iMaxNumAsyncTask = max_task;
+            }
         }
       else if (strcasecmp (ent_name, "async_long_job_sec") == 0)
         {
