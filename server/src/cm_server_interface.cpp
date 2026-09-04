@@ -674,6 +674,23 @@ async_job_slot_release (void)
 }
 
 /*
+ * async_job_slot_force_acquire () - unconditionally count one more job
+ *   into num_running_async_tasks, bypassing the sco.iMaxNumAsyncTask
+ *   check
+ *
+ *   NOTE: because this bypasses the sco.iMaxNumAsyncTask check,
+ *   num_running_async_tasks can end up temporarily larger than
+ *   sco.iMaxNumAsyncTask
+ *
+ *   caller must hold cm_mutex.
+ */
+static void
+async_job_slot_force_acquire (void)
+{
+  num_running_async_tasks++;
+}
+
+/*
  * build_async_task_limit_response () - reply used when a client's
  *   "async":"yes" request is rejected because sco.iMaxNumAsyncTask
  *   background jobs are already running.
@@ -959,6 +976,15 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
       mutex_lock (cm_mutex);
       reap_stale_async_jobs ();
       request_map[pstmt->uuid] = pstmt;
+       /*
+       * the pstmt->status == 0
+       * set slot to true for proper release.
+       */
+      if (pstmt->status == 0)
+        {
+          async_job_slot_force_acquire ();
+          pstmt->holds_async_slot = true;
+        }
       mutex_unlock (cm_mutex);
       put_uuid (response, pstmt->uuid);
       response["job-status"] = "running";
@@ -1162,6 +1188,11 @@ cm_execute_request_async (Json::Value &request, Json::Value &response,
       mutex_lock (cm_mutex);
       reap_stale_async_jobs ();
       request_map[pstmt->uuid] = pstmt;
+      if (pstmt->status == 0)
+        {
+          async_job_slot_force_acquire ();
+          pstmt->holds_async_slot = true;
+        }
       mutex_unlock (cm_mutex);
       put_uuid (response, pstmt->uuid);
       response["job-status"] = "running";
@@ -1352,6 +1383,9 @@ ext_get_server_status (Json::Value &request, Json::Value &response)
   req_map_status["long_job_list"] = long_job_list;
   response["request-map"] = req_map_status;
 
+  /*
+   * num_running_async_tasks can be larger than sco.iMaxNumAsyncTask:
+   */
   Json::Value slot;
   slot["num_async_job_running"] = num_running_async_tasks;
   slot["max_async_job"] = sco.iMaxNumAsyncTask;
