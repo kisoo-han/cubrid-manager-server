@@ -33,6 +33,7 @@
 #if defined(WINDOWS)
 #include <process.h>
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #include <psapi.h>
 #include <sys/locking.h>
 #include <Tlhelp32.h>
@@ -282,7 +283,7 @@ static volatile NT_QUERY_SYSTEM_INFORMATION s_pfnNtQuerySystemInformation = NULL
 #endif
 
 static int _maybe_ip_addr (char *hostname);
-static int _ip_equal_hostent (struct hostent *hp, char *token);
+static int _ip_equal_addrinfo (struct addrinfo *ai, char *token);
 static int get_short_filename (char *ret_name, int ret_name_len,
                                char *short_filename);
 static bool is_process_running (const char *process_name, unsigned int sleep_time);
@@ -327,9 +328,15 @@ is_process_running (const char *process_name, unsigned int sleep_time)
 int
 _op_check_is_localhost (char *token, char *hname)
 {
-  struct hostent *hp;
+  struct addrinfo hints;
+  struct addrinfo *res = NULL;
+  int ret = -1;
 
-  if ((hp = gethostbyname (hname)) == NULL)
+  memset (&hints, 0, sizeof (hints));
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+
+  if (getaddrinfo (hname, NULL, &hints, &res) != 0 || res == NULL)
     {
       return -1;
     }
@@ -339,9 +346,9 @@ _op_check_is_localhost (char *token, char *hname)
     {
       /* if token equal 127.0.0.1 or the ip is in the list of hname. */
       if ((strcmp (token, "127.0.0.1") == 0)
-          || _ip_equal_hostent (hp, token) == 0)
+          || _ip_equal_addrinfo (res, token) == 0)
         {
-          return 0;
+          ret = 0;
         }
     }
   else
@@ -353,10 +360,12 @@ _op_check_is_localhost (char *token, char *hname)
       if ((strcasecmp (token, hname) == 0)
           || (strcasecmp (token, "localhost") == 0))
         {
-          return 0;
+          ret = 0;
         }
     }
-  return -1;
+
+  freeaddrinfo (res);
+  return ret;
 }
 
 static int
@@ -370,23 +379,26 @@ _maybe_ip_addr (char *hostname)
 }
 
 static int
-_ip_equal_hostent (struct hostent *hp, char *token)
+_ip_equal_addrinfo (struct addrinfo *ai, char *token)
 {
-  int i;
+  struct addrinfo *cur;
   int retval = -1;
-  const char *tmpstr = NULL;
-  struct in_addr inaddr;
+  char tmpstr[INET_ADDRSTRLEN];
 
-  if (hp == NULL)
+  if (ai == NULL)
     {
       return retval;
     }
 
-  for (i = 0; hp->h_addr_list[i] != NULL; i++)
+  for (cur = ai; cur != NULL; cur = cur->ai_next)
     {
+      struct sockaddr_in *sin = (struct sockaddr_in *) cur->ai_addr;
+
       /* change ip address of hname to string. */
-      inaddr.s_addr = * (unsigned long *) hp->h_addr_list[i];
-      tmpstr = inet_ntoa (inaddr);
+      if (inet_ntop (AF_INET, &sin->sin_addr, tmpstr, sizeof (tmpstr)) == NULL)
+        {
+          continue;
+        }
 
       /* compare the ip string with token. */
       if (strcmp (token, tmpstr) == 0)
@@ -1035,6 +1047,28 @@ uWriteDBnfo2 (T_SERVER_STATUS_RESULT *cmd_res)
   uRemoveLockFile (lock_fd);
 }
 
+/*
+ * _host_is_resolvable () - thread-safe replacement for the gethostbyname (name) == NULL
+ */
+static int
+_host_is_resolvable (const char *name)
+{
+  struct addrinfo hints;
+  struct addrinfo *res = NULL;
+  int ok;
+
+  memset (&hints, 0, sizeof (hints));
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+
+  ok = (getaddrinfo (name, NULL, &hints, &res) == 0 && res != NULL);
+  if (res != NULL)
+    {
+      freeaddrinfo (res);
+    }
+  return ok;
+}
+
 int
 ut_get_dblist (nvplist *res, char dbdir_flag)
 {
@@ -1042,8 +1076,6 @@ ut_get_dblist (nvplist *res, char dbdir_flag)
   char *dbinfo[4];
   char strbuf[1024], file[PATH_MAX];
   char hname[128];
-  struct hostent *hp;
-  unsigned char ip_addr[4];
   char *token = NULL;
   char *saveptr;
 
@@ -1056,12 +1088,11 @@ ut_get_dblist (nvplist *res, char dbdir_flag)
 
   memset (hname, 0, sizeof (hname));
   gethostname (hname, sizeof (hname));
-  if ((hp = gethostbyname (hname)) == NULL)
+  if (!_host_is_resolvable (hname))
     {
       fclose (infile);
       return ERR_NO_ERROR;
     }
-  memcpy (ip_addr, hp->h_addr_list[0], 4);
 
   nv_add_nvp (res, "open", "dblist");
   while (fgets (strbuf, sizeof (strbuf), infile))
@@ -1076,7 +1107,7 @@ ut_get_dblist (nvplist *res, char dbdir_flag)
       for (token = STRTOK (dbinfo[2], ":", &saveptr); token != NULL;
            token = STRTOK (NULL, ":", &saveptr))
         {
-          if ((hp = gethostbyname (token)) == NULL)
+          if (!_host_is_resolvable (token))
             {
               continue;
             }

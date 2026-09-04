@@ -34,6 +34,7 @@
 #if defined(WINDOWS)
 #include <process.h>
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #include <io.h>
 #include <tlhelp32.h>
@@ -12326,32 +12327,48 @@ dbinfo_list_free (T_HA_SERVER_INFO_ALL *all_info)
 static char *
 get_ip_from_hostname (char *hostname, char *ipaddr, int ip_len)
 {
-  char *ip = NULL;
-  int i;
-  struct hostent *hostent_p = NULL;
+  char ip[INET_ADDRSTRLEN];
+  char last_ip[INET_ADDRSTRLEN];
+  int found_non_loopback = 0;
+  struct addrinfo hints;
+  struct addrinfo *res = NULL;
+  struct addrinfo *cur;
 
-  hostent_p = gethostbyname (hostname);
+  last_ip[0] = '\0';
 
-  if (hostent_p == NULL)
+  memset (&hints, 0, sizeof (hints));
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+
+  if (getaddrinfo (hostname, NULL, &hints, &res) != 0 || res == NULL)
     {
       ipaddr = NULL;
     }
   else
     {
-      for (i = 0; hostent_p->h_addr_list[i] != NULL; i++)
+      for (cur = res; cur != NULL; cur = cur->ai_next)
 	{
-	  ip = inet_ntoa (* ((struct in_addr *) hostent_p->h_addr_list[i]));
+	  struct sockaddr_in *sin = (struct sockaddr_in *) cur->ai_addr;
+
+	  if (inet_ntop (AF_INET, &sin->sin_addr, ip, sizeof (ip)) == NULL)
+	    {
+	      continue;
+	    }
+	  strcpy_limit (last_ip, ip, sizeof (last_ip));
 
 	  /* ignore the 127.0.0.1 */
 	  if (strcmp (ip, "127.0.0.1") == 0)
 	    {
 	      continue;
 	    }
+	  found_non_loopback = 1;
 	  break;
 	}
-      if (ip)
+      freeaddrinfo (res);
+
+      if (found_non_loopback || last_ip[0] != '\0')
 	{
-	  strcpy_limit (ipaddr, ip, ip_len);
+	  strcpy_limit (ipaddr, found_non_loopback ? ip : last_ip, ip_len);
 	}
     }
 
