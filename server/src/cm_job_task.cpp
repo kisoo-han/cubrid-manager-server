@@ -914,7 +914,36 @@ ts_update_user (nvplist *req, nvplist *res, char *_dbmt_error)
 int
 ts_class_info (nvplist *req, nvplist *res, char *_dbmt_error)
 {
-  return cm_ts_class_info (req, res, _dbmt_error);
+  char *dbname;
+  T_DB_SERVICE_MODE db_mode;
+  int ha_mode = 0;
+
+  dbname = nv_get_val (req, "_DBNAME");
+  if (dbname == NULL)
+    {
+      return ERR_PARAM_MISSING;
+    }
+
+  db_mode = uDatabaseMode (dbname, &ha_mode);
+  if (db_mode == DB_SERVICE_MODE_SA)
+    {
+      strcpy_limit (_dbmt_error, dbname, DBMT_ERROR_MSG_SIZE);
+      return ERR_STANDALONE_MODE;
+    }
+
+  if (db_mode == DB_SERVICE_MODE_NONE)
+    {
+      /*
+       * server not running: spawn cub_jobsa ourselves via run_child_env(),
+       */
+      char *uid = nv_get_val (req, "_DBID");
+      char *passwd = nv_get_val (req, "_DBPASSWD");
+      char *cli_ver_val = nv_get_val (req, "_CLIENT_VERSION");
+
+      return cmd_class_info_sa (dbname, uid, passwd, cli_ver_val, res, _dbmt_error);
+    }
+
+  return cm_ts_class_info (req, res, _dbmt_error);    /* server already running (CS mode): call cm_common libs */
 }
 
 int
@@ -4198,7 +4227,35 @@ rm_tmpfile:
 int
 ts_optimizedb (nvplist *req, nvplist *res, char *_dbmt_error)
 {
-  return cm_ts_optimizedb (req, res, _dbmt_error);
+  char *dbname, *classname;
+  T_DB_SERVICE_MODE db_mode;
+  int ha_mode = 0;
+
+  dbname = nv_get_val (req, "_DBNAME");
+  if (dbname == NULL)
+    {
+      strcpy_limit (_dbmt_error, "database name", DBMT_ERROR_MSG_SIZE);
+      return ERR_PARAM_MISSING;
+    }
+
+  db_mode = uDatabaseMode (dbname, &ha_mode);
+  if (db_mode == DB_SERVICE_MODE_SA)
+    {
+      strcpy_limit (_dbmt_error, dbname, DBMT_ERROR_MSG_SIZE);
+      return ERR_STANDALONE_MODE;
+    }
+
+  classname = nv_get_val (req, "classname");
+
+  if (db_mode == DB_SERVICE_MODE_NONE)
+    {
+      /*
+       * server not running: run the `cubrid optimizedb` using run_child_env ()
+       */
+      return cmd_optimizedb_sa (dbname, classname, _dbmt_error);
+    }
+
+  return cm_ts_optimizedb (req, res, _dbmt_error); /* server already running (CS mode): call cm_common libs */
 }
 
 int
@@ -8728,7 +8785,35 @@ ts_trigger_operation (nvplist *req, nvplist *res, char *_dbmt_error)
 int
 ts_get_triggerinfo (nvplist *req, nvplist *res, char *_dbmt_error)
 {
-  return cm_ts_get_triggerinfo (req, res, _dbmt_error);
+  char *dbname;
+  T_DB_SERVICE_MODE db_mode;
+  int ha_mode = 0;
+
+  dbname = nv_get_val (req, "_DBNAME");
+  if (dbname == NULL)
+    {
+      return ERR_PARAM_MISSING;
+    }
+
+  db_mode = uDatabaseMode (dbname, &ha_mode);
+  if (db_mode == DB_SERVICE_MODE_SA)
+    {
+      strcpy_limit (_dbmt_error, dbname, DBMT_ERROR_MSG_SIZE);
+      return ERR_STANDALONE_MODE;
+    }
+
+  if (db_mode == DB_SERVICE_MODE_NONE)
+    {
+      /*
+       * server not running: spawn cub_sainfo ourselves via run_child_env(),
+       */
+      char *uid = nv_get_val (req, "_DBID");
+      char *passwd = nv_get_val (req, "_DBPASSWD");
+
+      return cmd_get_triggerinfo_sa (dbname, uid, passwd, res, _dbmt_error);
+    }
+
+  return cm_ts_get_triggerinfo (req, res, _dbmt_error); /* server already running (CS mode): call cm_common libs */
 }
 
 int

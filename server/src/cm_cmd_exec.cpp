@@ -427,6 +427,251 @@ cmd_start_master (void)
   SLEEP_MILISEC (0, 500);
 }
 
+/*
+ * cub_jobsa_cmd_name () / cub_sainfo_cmd_name () - build the path to the
+ * SA-mode helper executables
+ */
+static char *
+cub_jobsa_cmd_name (char *buf)
+{
+  buf[0] = '\0';
+#if !defined (DO_NOT_USE_CUBRIDENV)
+  sprintf (buf, "%s/%scub_jobsa%s", sco.szCubrid, CUBRID_DIR_BIN, DBMT_EXE_EXT);
+#else
+  sprintf (buf, "%s/cub_jobsa%s", CUBRID_BINDIR, DBMT_EXE_EXT);
+#endif
+  return buf;
+}
+
+static char *
+cub_sainfo_cmd_name (char *buf)
+{
+  buf[0] = '\0';
+#if !defined (DO_NOT_USE_CUBRIDENV)
+  sprintf (buf, "%s/%scub_sainfo%s", sco.szCubrid, CUBRID_DIR_BIN, DBMT_EXE_EXT);
+#else
+  sprintf (buf, "%s/cub_sainfo%s", CUBRID_BINDIR, DBMT_EXE_EXT);
+#endif
+  return buf;
+}
+
+int
+cmd_class_info_sa (const char *dbname, const char *uid, const char *passwd,
+                   const char *cli_ver_val, nvplist *out, char *_dbmt_error)
+{
+  char strbuf[1024];
+  char outfile[PATH_MAX], errfile[PATH_MAX];
+  FILE *fp;
+  int ret_val = ERR_NO_ERROR;
+  char cmd_name[PATH_MAX];
+  const char *argv[10];
+  char cli_ver[10];
+  char opcode[10];
+  int major_ver, minor_ver;
+  const char *ver_str = (cli_ver_val != NULL) ? cli_ver_val : "1.0";
+  const char *dot;
+
+  if (uid == NULL)
+    {
+      uid = "";
+    }
+  if (passwd == NULL)
+    {
+      passwd = "";
+    }
+
+  if (gen_tempfile_path (outfile, sco.dbmt_tmp_dir, "DBMT_class_info", TS_CLASSINFO, PATH_MAX) < 0)
+    {
+      return ERR_GENERAL_ERROR;
+    }
+  if (snprintf (errfile, PATH_MAX - 1, "%s.err", outfile) < 0)
+    {
+      return ERR_GENERAL_ERROR;
+    }
+  unlink (outfile);
+  unlink (errfile);
+
+  major_ver = atoi (ver_str);
+  dot = strchr (ver_str, '.');
+  minor_ver = (dot != NULL) ? atoi (dot + 1) : 0;
+  snprintf (cli_ver, sizeof (cli_ver) - 1, "%d", EMGR_MAKE_VER (major_ver, minor_ver));
+
+  cub_jobsa_cmd_name (cmd_name);
+  snprintf (opcode, sizeof (opcode) - 1, "%d", CMS_EMS_SA_CLASS_INFO);
+
+  argv[0] = cmd_name;
+  argv[1] = opcode;
+  argv[2] = dbname;
+  argv[3] = uid;
+  argv[4] = passwd;
+  argv[5] = outfile;
+  argv[6] = errfile;
+  argv[7] = cli_ver;
+  argv[8] = NULL;
+
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, NULL) < 0)
+    {
+      strcpy_limit (_dbmt_error, argv[0], DBMT_ERROR_MSG_SIZE);
+      unlink (outfile);
+      unlink (errfile);
+      return ERR_SYSTEM_CALL;
+    }
+
+  fp = fopen (errfile, "r");
+  if (fp != NULL)
+    {
+      strbuf[0] = '\0';
+      if (fgets (strbuf, sizeof (strbuf), fp) != NULL)
+        {
+          strcpy_limit (_dbmt_error, strbuf, DBMT_ERROR_MSG_SIZE);
+        }
+      fclose (fp);
+      ret_val = ERR_WITH_MSG;
+      goto class_info_sa_finale;
+    }
+
+  fp = fopen (outfile, "r");
+  if (fp == NULL)
+    {
+      strcpy_limit (_dbmt_error, "class_info", DBMT_ERROR_MSG_SIZE);
+      ret_val = ERR_SYSTEM_CALL;
+      goto class_info_sa_finale;
+    }
+
+  nv_add_nvp (out, "dbname", dbname);
+  while (fgets (strbuf, sizeof (strbuf), fp))
+    {
+      char name[32], value[128];
+
+      if (sscanf (strbuf, "%31s %127s", name, value) < 2)
+        {
+          continue;
+        }
+      nv_add_nvp (out, name, value);
+    }
+  fclose (fp);
+
+class_info_sa_finale:
+  unlink (outfile);
+  unlink (errfile);
+  return ret_val;
+}
+
+int
+cmd_get_triggerinfo_sa (const char *dbname, const char *uid, const char *passwd,
+                        nvplist *res, char *_dbmt_error)
+{
+  char strbuf[1024];
+  char outfile[PATH_MAX], errfile[PATH_MAX];
+  FILE *fp;
+  int ret_val = ERR_NO_ERROR;
+  char cmd_name[PATH_MAX];
+  const char *argv[10];
+
+  if (uid == NULL)
+    {
+      uid = "";
+    }
+  if (passwd == NULL)
+    {
+      passwd = "";
+    }
+
+  if (gen_tempfile_path (outfile, sco.dbmt_tmp_dir, "DBMT_trigger_info", TS_GETTRIGGERINFO, PATH_MAX) < 0)
+    {
+      return ERR_GENERAL_ERROR;
+    }
+  if (snprintf (errfile, PATH_MAX - 1, "%s.err", outfile) < 0)
+    {
+      return ERR_GENERAL_ERROR;
+    }
+  unlink (outfile);
+  unlink (errfile);
+
+  cub_sainfo_cmd_name (cmd_name);
+
+  argv[0] = cmd_name;
+  argv[1] = dbname;
+  argv[2] = uid;
+  argv[3] = passwd;
+  argv[4] = outfile;
+  argv[5] = errfile;
+  argv[6] = NULL;
+
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, NULL) < 0)
+    {
+      strcpy_limit (_dbmt_error, argv[0], DBMT_ERROR_MSG_SIZE);
+      unlink (outfile);
+      unlink (errfile);
+      return ERR_SYSTEM_CALL;
+    }
+
+  fp = fopen (errfile, "r");
+  if (fp != NULL)
+    {
+      strbuf[0] = '\0';
+      if (fgets (strbuf, sizeof (strbuf), fp) != NULL)
+        {
+          strcpy_limit (_dbmt_error, strbuf, DBMT_ERROR_MSG_SIZE);
+        }
+      fclose (fp);
+      ret_val = ERR_WITH_MSG;
+      goto trigger_info_sa_finale;
+    }
+
+  nv_add_nvp (res, "dbname", dbname);
+  ret_val = nv_readfrom (res, outfile);
+
+trigger_info_sa_finale:
+  unlink (outfile);
+  unlink (errfile);
+  return ret_val;
+}
+
+int
+cmd_optimizedb_sa (const char *dbname, const char *classname, char *_dbmt_error)
+{
+  char cmd_name[PATH_MAX];
+  const char *argv[6];
+  int argc = 0;
+  int exit_code = 0;
+  char cubrid_err_file[PATH_MAX];
+
+  cubrid_cmd_name (cmd_name);
+
+  if (gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "optimizedb", TS_OPTIMIZEDB, PATH_MAX) < 0)
+    {
+      strcpy_limit (_dbmt_error, "optimizedb", DBMT_ERROR_MSG_SIZE);
+      return ERR_GENERAL_ERROR;
+    }
+
+  argv[argc++] = cmd_name;
+  argv[argc++] = UTIL_OPTION_OPTIMIZEDB;
+  if (classname != NULL)
+    {
+      argv[argc++] = "--" OPTIMIZE_CLASS_NAME_L;
+      argv[argc++] = classname;
+    }
+  argv[argc++] = dbname;
+  argv[argc++] = NULL;
+
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, cubrid_err_file, &exit_code) < 0)
+    {
+      strcpy_limit (_dbmt_error, argv[0], DBMT_ERROR_MSG_SIZE);
+      unlink (cubrid_err_file);
+      return ERR_SYSTEM_CALL;
+    }
+
+  if (exit_code != 0)
+    {
+      read_error_file (cubrid_err_file, _dbmt_error, DBMT_ERROR_MSG_SIZE);
+      unlink (cubrid_err_file);
+      return ERR_WITH_MSG;
+    }
+
+  unlink (cubrid_err_file);
+  return ERR_NO_ERROR;
+}
 
 int
 read_csql_error_file (char *err_file, char *err_buf, int err_buf_size)

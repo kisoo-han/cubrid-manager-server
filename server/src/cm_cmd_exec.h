@@ -276,4 +276,23 @@ int read_error_file (const char *err_file, char *err_buf, int err_buf_size);
 int read_error_file2 (char *err_file, char *err_buf, int err_buf_size, int *err_code);
 int read_csql_error_file (char *err_file, char *err_buf, int err_buf_size);
 
+/*
+ * opcodes understood by cub_jobsa. These must stay numerically identical to
+ * cm_common/cm_execute_sa.h
+ */
+#if !defined (OPTIMIZE_CLASS_NAME_L)
+#define OPTIMIZE_CLASS_NAME_L       "class-name"
+#endif
+#define CMS_EMS_SA_CLASS_INFO       1
+
+/*
+ * cmd_class_info_sa () / cmd_get_triggerinfo_sa () / cmd_optimizedb_sa () -
+ * SA-mode counterparts of "classinfo", "gettriggerinfo" and "optimizedb"
+ * for a database that is not currently running as a server.
+ */
+int cmd_class_info_sa (const char *dbname, const char *uid, const char *passwd,
+                        const char *cli_ver_val, nvplist *out, char *_dbmt_error);
+int cmd_get_triggerinfo_sa (const char *dbname, const char *uid, const char *passwd,
+                            nvplist *res, char *_dbmt_error);
+int cmd_optimizedb_sa (const char *dbname, const char *classname, char *_dbmt_error);
 #endif                /* _CM_COMMAND_EXECUTE_H_ */
