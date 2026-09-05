@@ -32,6 +32,7 @@
 #include <process.h>
 #else
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #endif
 
@@ -58,6 +59,9 @@ static int read_start_server_output (char *stdout_log_file,
                                      char *_dbmt_error);
 
 static int _size_to_byte_by_unit (double orgin_num, char unit);
+
+static bool _child_exited_ok (int exit_code);
+static void _fill_dbmt_error_from_errfile (const char *err_file, char *_dbmt_error);
 
 /*
  * cubrid_cmd_name () - now defined in cm_server_status.cpp (still declared
@@ -454,6 +458,36 @@ cub_sainfo_cmd_name (char *buf)
   return buf;
 }
 
+/*
+ * _child_exited_ok () - true if a run_child_env () (wait_flag ==
+ * RUN_FOREGROUND) child both ran to completion and exited with status 0.
+ *
+ */
+static bool
+_child_exited_ok (int exit_code)
+{
+#if defined(WINDOWS)
+  return (exit_code == 0);
+#else
+  return (WIFEXITED (exit_code) != 0 && WEXITSTATUS (exit_code) == 0);
+#endif
+}
+
+/*
+ * _fill_dbmt_error_from_errfile () -
+ * fill _dbmt_error with err_file's content via read_error_file (),
+ * or "unknown error" when err_file doesn't exist, or * empty
+ */
+static void
+_fill_dbmt_error_from_errfile (const char *err_file, char *_dbmt_error)
+{
+  if (read_error_file (err_file, _dbmt_error, DBMT_ERROR_MSG_SIZE) == 0
+      || _dbmt_error[0] == '\0')
+    {
+      strcpy_limit (_dbmt_error, "unknown error", DBMT_ERROR_MSG_SIZE);
+    }
+}
+
 int
 cmd_class_info_sa (const char *dbname, const char *uid, const char *passwd,
                    const char *cli_ver_val, nvplist *out, char *_dbmt_error)
@@ -467,6 +501,7 @@ cmd_class_info_sa (const char *dbname, const char *uid, const char *passwd,
   char cli_ver[10];
   char opcode[10];
   int major_ver, minor_ver;
+  int exit_code = 0;
   const char *ver_str = (cli_ver_val != NULL) ? cli_ver_val : "1.0";
   const char *dot;
 
@@ -508,7 +543,7 @@ cmd_class_info_sa (const char *dbname, const char *uid, const char *passwd,
   argv[7] = cli_ver;
   argv[8] = NULL;
 
-  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, NULL) < 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, &exit_code) < 0)
     {
       strcpy_limit (_dbmt_error, argv[0], DBMT_ERROR_MSG_SIZE);
       unlink (outfile);
@@ -516,15 +551,9 @@ cmd_class_info_sa (const char *dbname, const char *uid, const char *passwd,
       return ERR_SYSTEM_CALL;
     }
 
-  fp = fopen (errfile, "r");
-  if (fp != NULL)
+  if (!_child_exited_ok (exit_code))
     {
-      strbuf[0] = '\0';
-      if (fgets (strbuf, sizeof (strbuf), fp) != NULL)
-        {
-          strcpy_limit (_dbmt_error, strbuf, DBMT_ERROR_MSG_SIZE);
-        }
-      fclose (fp);
+      _fill_dbmt_error_from_errfile (errfile, _dbmt_error);
       ret_val = ERR_WITH_MSG;
       goto class_info_sa_finale;
     }
@@ -560,12 +589,11 @@ int
 cmd_get_triggerinfo_sa (const char *dbname, const char *uid, const char *passwd,
                         nvplist *res, char *_dbmt_error)
 {
-  char strbuf[1024];
   char outfile[PATH_MAX], errfile[PATH_MAX];
-  FILE *fp;
   int ret_val = ERR_NO_ERROR;
   char cmd_name[PATH_MAX];
   const char *argv[10];
+  int exit_code = 0;
 
   if (uid == NULL)
     {
@@ -597,7 +625,7 @@ cmd_get_triggerinfo_sa (const char *dbname, const char *uid, const char *passwd,
   argv[5] = errfile;
   argv[6] = NULL;
 
-  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, NULL) < 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, &exit_code) < 0)
     {
       strcpy_limit (_dbmt_error, argv[0], DBMT_ERROR_MSG_SIZE);
       unlink (outfile);
@@ -605,15 +633,9 @@ cmd_get_triggerinfo_sa (const char *dbname, const char *uid, const char *passwd,
       return ERR_SYSTEM_CALL;
     }
 
-  fp = fopen (errfile, "r");
-  if (fp != NULL)
+  if (!_child_exited_ok (exit_code))
     {
-      strbuf[0] = '\0';
-      if (fgets (strbuf, sizeof (strbuf), fp) != NULL)
-        {
-          strcpy_limit (_dbmt_error, strbuf, DBMT_ERROR_MSG_SIZE);
-        }
-      fclose (fp);
+      _fill_dbmt_error_from_errfile (errfile, _dbmt_error);
       ret_val = ERR_WITH_MSG;
       goto trigger_info_sa_finale;
     }
@@ -661,9 +683,9 @@ cmd_optimizedb_sa (const char *dbname, const char *classname, char *_dbmt_error)
       return ERR_SYSTEM_CALL;
     }
 
-  if (exit_code != 0)
+  if (!_child_exited_ok (exit_code))
     {
-      read_error_file (cubrid_err_file, _dbmt_error, DBMT_ERROR_MSG_SIZE);
+      _fill_dbmt_error_from_errfile (cubrid_err_file, _dbmt_error);
       unlink (cubrid_err_file);
       return ERR_WITH_MSG;
     }
