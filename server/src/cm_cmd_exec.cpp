@@ -493,10 +493,10 @@ cmd_class_info_sa (const char *dbname, const char *uid, const char *passwd,
   major_ver = atoi (ver_str);
   dot = strchr (ver_str, '.');
   minor_ver = (dot != NULL) ? atoi (dot + 1) : 0;
-  snprintf (cli_ver, sizeof (cli_ver) - 1, "%d", EMGR_MAKE_VER (major_ver, minor_ver));
+  snprintf (cli_ver, sizeof (cli_ver), "%d", EMGR_MAKE_VER (major_ver, minor_ver));
 
   cub_jobsa_cmd_name (cmd_name);
-  snprintf (opcode, sizeof (opcode) - 1, "%d", CMS_EMS_SA_CLASS_INFO);
+  snprintf (opcode, sizeof (opcode), "%d", CMS_EMS_SA_CLASS_INFO);
 
   argv[0] = cmd_name;
   argv[1] = opcode;
