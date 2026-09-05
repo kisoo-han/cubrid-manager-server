@@ -10,8 +10,8 @@ Check the status of a task asynchronously running
 | token | token string encrypted. |
 | uuid | uuid from the asynchronous task response |
 
-* an async job is dropped 3,600 seconds after it was created by default,<br>
- it can be cnahged in cm.conf, for example "async_job_ttl_sec=7200"
+* an uuid is dropped 3,600 seconds after the job is finished by default,<br>
+ it can be changed in cm.conf, for example "async_job_ttl_sec=7200"
 
 ## Request Sample
 
