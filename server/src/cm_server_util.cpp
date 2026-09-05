@@ -345,6 +345,11 @@ _op_check_is_localhost (char *token, char *hname)
   if (_maybe_ip_addr (token) > 0)
     {
       /* if token equal 127.0.0.1 or the ip is in the list of hname. */
+      if (getaddrinfo (hname, NULL, &hints, &res) != 0 || res == NULL)
+        {
+          return -1;
+        }
+
       if ((strcmp (token, "127.0.0.1") == 0)
           || _ip_equal_addrinfo (res, token) == 0)
         {
