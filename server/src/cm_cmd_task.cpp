@@ -1446,6 +1446,7 @@ _get_localhost_ip (char *ipaddr, int ipaddr_len)
   struct addrinfo hints;
   struct addrinfo *res = NULL;
   struct addrinfo *cur;
+  int ret = -1;
 
 #if defined(WINDOWS)
   WSADATA wsaData;
@@ -1499,12 +1500,12 @@ _get_localhost_ip (char *ipaddr, int ipaddr_len)
   if (found_non_loopback || last_ip[0] != '\0')
     {
       strcpy_limit (ipaddr, found_non_loopback ? ip : last_ip, ipaddr_len);
-      return 0;
+      ret = 0;
     }
 
 exit_err:
 #if defined(WINDOWS)
   WSACleanup ();
 #endif
-  return -1;
+  return ret;
 }
