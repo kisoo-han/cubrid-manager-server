@@ -33,13 +33,15 @@
 #define MAX_UNICAS_PROC                 40
 
 #define MAX_NUM_ASYNC_TASK_LIMIT        12
-#define DEFAULT_MAX_NUM_ASYNC_TASK      8     /* default max number of concurrently running async ("async":"yes") jobs */
-#define DEFAULT_ASYNC_JOB_TTL_SEC       3600  /* how long a finished async job kept around for gettaskstatus polling */
-#define MIN_ASYNC_JOB_TTL_SEC           60    /* min async job TTL, 60 sec */
+#define DEFAULT_MAX_NUM_ASYNC_TASK      8       /* default max number of concurrently running async ("async":"yes") jobs */
 
-#define DEFAULT_ASYNC_LONG_JOB_SEC      86400  /* 24 hours */
-#define MIN_ASYNC_LONG_JOB_SEC          60     /* min, 60 sec */
-#define MAX_ASYNC_LONG_JOB_SEC          604800 /* 1 week */
+#define DEFAULT_ASYNC_JOB_TTL_SEC       3600    /* how long a finished async job kept around for gettaskstatus polling */
+#define MIN_ASYNC_JOB_TTL_SEC           60      /* min async job TTL, 60 sec */
+#define MAX_ASYNC_JOB_TTL_SEC           604800  /* min async job TTL, 60 sec */
+
+#define DEFAULT_ASYNC_LONG_JOB_SEC      86400   /* 24 hours */
+#define MIN_ASYNC_LONG_JOB_SEC          60      /* min, 60 sec */
+#define MAX_ASYNC_LONG_JOB_SEC          604800  /* 1 week */
 
 
 #define MIN_ENCRYPT_LEN                 32

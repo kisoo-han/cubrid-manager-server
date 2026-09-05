@@ -397,7 +397,7 @@ uReadSystemConfig (void)
       else if (strcasecmp (ent_name, "async_job_ttl_sec") == 0)
         {
           int ttl = atoi (ent_val);
-          if (MIN_ASYNC_JOB_TTL_SEC <= ttl)
+          if (MIN_ASYNC_JOB_TTL_SEC <= ttl && ttl <= MAX_ASYNC_LONG_JOB_SEC)
             {
               sco.iAsyncJobTtlSec = ttl;
             }
