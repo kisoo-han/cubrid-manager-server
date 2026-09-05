@@ -4131,7 +4131,14 @@ gen_tempfile_path (char *tempfile, const char *tempdir, const char *prefix, int 
   int ret = -1;
   int myseq = ATOMIC_FETCH_ADD1 (seq);
 
-  if (tempfile == NULL || tempdir == NULL || size < 1)
+  if (tempfile == NULL)
+    {
+      return -1;
+    }
+
+  tempfile[0] = '\0';
+
+  if (tempdir == NULL || size < 1)
     {
       return -1;
     }
