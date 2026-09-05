@@ -323,6 +323,7 @@ private:
 /*
  * resolve_ipv4_into () - thread-safe replacement for the gethostbyname(name)
  */
+static
 bool resolve_ipv4_into(const std::string& name, char* out_addr4) {
    struct addrinfo hints;
    struct addrinfo* res = 0;
@@ -346,6 +347,7 @@ bool resolve_ipv4_into(const std::string& name, char* out_addr4) {
 /*
  * verify_via_reverse_dns () - thread-safe replacement for the gethostbyaddr(ip)
  */
+static
 bool verify_via_reverse_dns(char* in_addr4, char* out_addr4) {
    struct sockaddr_in sin;
    char host[NI_MAXHOST];
