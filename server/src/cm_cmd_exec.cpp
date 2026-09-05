@@ -165,16 +165,28 @@ void find_and_parse_cub_admin_version (int &major_version, int &minor_version, c
     }
 
   cubrid_cmd_name (cmd_name);
-  gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "cub_admin_version", TS_GET_SERVER_VERSION, PATH_MAX);
+  if (gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "cub_admin_version", TS_GET_SERVER_VERSION, PATH_MAX) < 0)
+    {
+      LOG_ERROR ("Unable to determine cubrid version due to a system error. Set version to %d.%d defined by default.",
+                 cubrid_version_major, cubrid_version_minor);
+      return;
+    }
   argv[0] = cmd_name;
   argv[1] = "--version";
   argv[2] = NULL;
 
-  run_child_env (argv, RUN_FOREGROUND, NULL, tmpfile, NULL, NULL);
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, tmpfile, NULL, NULL) < 0)
+    {
+      LOG_ERROR ("Unable to determine cubrid version due to a system error. Set version to %d.%d defined by default.",
+                 cubrid_version_major, cubrid_version_minor);
+      unlink (tmpfile);
+      return;
+    }
   if ((infile = fopen (tmpfile, "r")) == NULL)
     {
       LOG_ERROR ("Unable to determine cubrid version due to a system error. Set version to %d.%d defined by default.",
                  cubrid_version_major, cubrid_version_minor);
+      unlink (tmpfile);
       return;
     }
 
@@ -187,18 +199,35 @@ void find_and_parse_cub_admin_version (int &major_version, int &minor_version, c
       return;
     }
 
-  sscanf (strbuf, "%*s %s", version);
+  if (sscanf (strbuf, "%*s %64s", version) != 1)
+    {
+      LOG_ERROR ("Unable to parse cubrid version from '%s'. Set version to %d.%d defined by default.",
+                 strbuf, cubrid_version_major, cubrid_version_minor);
+      fclose (infile);
+      unlink (tmpfile);
+      return;
+    }
 
   char *p = STRTOK (version, ".", &saveptr);
   if (p != NULL && is_positive_number (p))
     {
       local_major = atoi (p);
     }
+  else
+    {
+      LOG_ERROR ("Unable to parse cubrid major version from '%s'. Set version to %d.%d defined by default.",
+                 version, cubrid_version_major, cubrid_version_minor);
+    }
 
   p = STRTOK (NULL, ".", &saveptr);
   if (p != NULL && is_positive_number (p))
     {
       local_minor = atoi (p);
+    }
+  else
+    {
+      LOG_ERROR ("Unable to parse cubrid minor version from '%s'. Set version to %d.%d defined by default.",
+                 version, cubrid_version_major, cubrid_version_minor);
     }
 
   if (local_major > 0 && local_minor >= 0)
