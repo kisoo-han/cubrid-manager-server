@@ -435,9 +435,9 @@ cub_jobsa_cmd_name (char *buf)
 {
   buf[0] = '\0';
 #if !defined (DO_NOT_USE_CUBRIDENV)
-  sprintf (buf, "%s/%scub_jobsa%s", sco.szCubrid, CUBRID_DIR_BIN, DBMT_EXE_EXT);
+  snprintf (buf, PATH_MAX, "%s/%scub_jobsa%s", sco.szCubrid, CUBRID_DIR_BIN, DBMT_EXE_EXT);
 #else
-  sprintf (buf, "%s/cub_jobsa%s", CUBRID_BINDIR, DBMT_EXE_EXT);
+  snprintf (buf, PATH_MAX, "%s/cub_jobsa%s", CUBRID_BINDIR, DBMT_EXE_EXT);
 #endif
   return buf;
 }

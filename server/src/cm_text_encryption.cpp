@@ -85,12 +85,12 @@ uEncrypt (int len, const char *src, char *trg)
    * bytes) with random padding
    */
   array_init_random_value (encstr, len + 1);
-  strcpy (encstr, src);
+  snprintf (encstr, len, src);
 
   tea_encrypt (key, len, encstr);
   for (i = 0; i < len; ++i)
     {
-      sprintf (strbuf, "%08x", encstr[i]);
+      snprintf (strbuf, sizeof (strbuf), "%08x", encstr[i]);
       trg[i * 2] = strbuf[6];
       trg[i * 2 + 1] = strbuf[7];
     }
