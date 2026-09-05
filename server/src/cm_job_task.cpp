@@ -17155,7 +17155,6 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
   char path [512];
   int argc = 0;
   char note [20];
-  int status = EXIT_SUCCESS;
   T_DB_SERVICE_MODE db_mode;
 
   db_name = nv_get_val (req, "dbname");
@@ -17226,7 +17225,7 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
     char devnull_out[] = "/dev/null";
     char devnull_err[] = "/dev/null";
 
-    ret_val = run_child_env (argv, RUN_BACKGROUND, NULL, devnull_out, devnull_err, &status);
+    ret_val = run_child_env (argv, RUN_BACKGROUND, NULL, devnull_out, devnull_err, NULL);
   }
 #endif
 
@@ -17234,7 +17233,7 @@ ts_start_statdump (nvplist *req, nvplist *res, char *_dbmt_error)
 
   mutex_lock (*_statdumpd_mutex ());
 
-  if (ret_val < 0 || status != EXIT_SUCCESS)
+  if (ret_val < 0)
     {
       /*
        * give the reserved entry back; nobody else could have touched
