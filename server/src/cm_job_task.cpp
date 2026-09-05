@@ -6145,7 +6145,7 @@ ts_startinfo (nvplist *req, nvplist *res, char *_dbmt_error)
     }
 
   nv_add_nvp (res, "open", "activelist");
-  cmd_res = cmd_server_status ();
+  cmd_res = cmd_cms_server_status ();
   if (cmd_res != NULL)
     {
       T_SERVER_STATUS_INFO *info = (T_SERVER_STATUS_INFO *) cmd_res->result;

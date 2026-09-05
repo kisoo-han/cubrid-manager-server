@@ -51,8 +51,6 @@
 
 static T_CMD_RESULT *new_cmd_result (void);
 static const char *get_cubrid_mode_opt (T_CUBRID_MODE mode);
-static void read_server_status_output (T_SERVER_STATUS_RESULT *res,
-                                       char *out_file);
 static void read_spacedb_output (GeneralSpacedbResult *res, char *out_file);
 
 static int read_start_server_output (char *stdout_log_file,
@@ -61,17 +59,12 @@ static int read_start_server_output (char *stdout_log_file,
 
 static int _size_to_byte_by_unit (double orgin_num, char unit);
 
-char *
-cubrid_cmd_name (char *buf)
-{
-  buf[0] = '\0';
-#if !defined (DO_NOT_USE_CUBRIDENV)
-  sprintf (buf, "%s/%s%s", sco.szCubrid, CUBRID_DIR_BIN, UTIL_CUBRID);
-#else
-  sprintf (buf, "%s/%s", CUBRID_BINDIR, UTIL_CUBRID);
-#endif
-  return buf;
-}
+/*
+ * cubrid_cmd_name () - now defined in cm_server_status.cpp (still declared
+ * in cm_cmd_exec.h, used here by cmd_csql ()/cmd_spacedb ()/
+ * cmd_start_server () below exactly as before). moved out along with
+ * cmd_cms_server_status ()
+ */
 
 T_CSQL_RESULT *
 cmd_csql (char *dbname, char *uid, char *passwd, T_CUBRID_MODE mode,
@@ -426,6 +419,12 @@ cmd_start_master (void)
   pid = run_child_env (argv, RUN_BACKGROUND, NULL, NULL, NULL, NULL);    /* cub_master */
   SLEEP_MILISEC (0, 500);
 }
+
+/*
+ * is_master_start () and cmd_cms_server_status () - moved to
+ * cm_server_status.cpp (see the comment at its top for why); still
+ * declared for other translation units in cm_cmd_exec.h.
+ */
 
 /*
  * cub_jobsa_cmd_name () / cub_sainfo_cmd_name () - build the path to the

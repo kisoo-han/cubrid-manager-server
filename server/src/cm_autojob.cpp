@@ -493,7 +493,7 @@ aj_autoaddvoldb_handler (void *hd, time_t prev_check_time, time_t cur_time)
   T_SERVER_STATUS_RESULT *server_status_res;
   int db_mode = 0;
 
-  server_status_res = cmd_server_status ();
+  server_status_res = cmd_cms_server_status ();
   if (server_status_res == NULL)
     {
       return;

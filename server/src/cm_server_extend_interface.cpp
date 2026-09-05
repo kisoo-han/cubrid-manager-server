@@ -461,7 +461,7 @@ int ext_get_active_dbs (Json::Value &activedbs)
 {
   T_SERVER_STATUS_RESULT *cmd_res;
   int i;
-  cmd_res = cmd_server_status ();
+  cmd_res = cmd_cms_server_status ();
   if (cmd_res == NULL)
     {
       return 1;

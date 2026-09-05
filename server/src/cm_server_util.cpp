@@ -992,7 +992,7 @@ uWriteDBnfo (void)
 {
   T_SERVER_STATUS_RESULT *cmd_res;
 
-  cmd_res = cmd_server_status ();
+  cmd_res = cmd_cms_server_status ();
   uWriteDBnfo2 (cmd_res);
   cmd_servstat_result_free (cmd_res);
 }

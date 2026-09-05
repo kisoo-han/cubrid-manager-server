@@ -295,4 +295,13 @@ int cmd_class_info_sa (const char *dbname, const char *uid, const char *passwd,
 int cmd_get_triggerinfo_sa (const char *dbname, const char *uid, const char *passwd,
                             nvplist *res, char *_dbmt_error);
 int cmd_optimizedb_sa (const char *dbname, const char *classname, char *_dbmt_error);
+
+/*
+ * cmd_cms_server_status () - CMS-native port of CUBRID engine's
+ * cm_common/cm_utils.c:cmd_server_status (). Runs `cubrid server status`
+ * and parses its output into the same T_SERVER_STATUS_RESULT /
+ * T_SERVER_STATUS_INFO shape the engine's version returns
+ */
+T_SERVER_STATUS_RESULT *cmd_cms_server_status (void);
+
 #endif                /* _CM_COMMAND_EXECUTE_H_ */
