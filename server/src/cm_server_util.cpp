@@ -2933,6 +2933,7 @@ error:
     }
   free (merged);
   env_mutex_unlock ();
+  LOG_ERROR ("malloc () for execve failed (critical), try execv () instead");
   return NULL;
 }
 
@@ -2999,23 +3000,37 @@ run_child_env (const char *const argv[], int wait_flag, const char *stdin_file, 
              dup2 (fd, 0);
              close (fd);
            }
+         else
+           {
+             _exit (126);
+           }
        }
       if (stdout_file != NULL)
        {
-         fd = open (stdout_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+         unlink (stdout_file);
+         fd = open (stdout_file, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0666);
          if (fd >= 0)
            {
              dup2 (fd, 1);
              close (fd);
            }
+         else
+           {
+             _exit (126);
+           }
        }
       if (stderr_file != NULL)
        {
-         fd = open (stderr_file, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+         unlink (stderr_file);
+         fd = open (stderr_file, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0666);
          if (fd >= 0)
            {
              dup2 (fd, 2);
              close (fd);
+           }
+         else
+           {
+             _exit (126);
            }
        }
 
