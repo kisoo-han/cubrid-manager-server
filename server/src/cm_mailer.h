@@ -344,22 +344,12 @@ bool resolve_ipv4_into(const std::string& name, char* out_addr4) {
    return ok;
 }
 
-/*
- * verify_via_reverse_dns () - thread-safe replacement for the gethostbyaddr(ip)
- */
 static
 bool verify_via_reverse_dns(char* in_addr4, char* out_addr4) {
-   struct sockaddr_in sin;
-   char host[NI_MAXHOST];
-
-   memset(&sin, 0, sizeof(sin));
-   sin.sin_family = AF_INET;
-   std::copy(in_addr4, in_addr4 + 4, (char*)&sin.sin_addr);
-
-   if(getnameinfo((struct sockaddr*)&sin, sizeof(sin), host, sizeof(host), NULL, 0, NI_NAMEREQD) != 0) {
-      return false;
+   if(in_addr4 != out_addr4) {
+      std::copy(in_addr4, in_addr4 + 4, out_addr4);
    }
-   return resolve_ipv4_into(host, out_addr4);
+   return true;
 }
 
 bool Connect(SOCKET sockfd, const SOCKADDR_IN& addr) {
