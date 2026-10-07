@@ -274,12 +274,15 @@ cub_generic_request_handler (struct evhttp_request *req, void *arg)
 
   cub_add_private_param (req, root);
 
+  if (strcmp ((char *) arg, "cm_api") != 0)
+    {
+      free (body);
+      return evhttp_send_reply (req, HTTP_BADREQUEST, "", NULL);
+    }
+
   try
     {
-      if (strcmp ((char *) arg, "cm_api") == 0)
-	{
-	  cub_cm_request_handler (root, response);
-	}
+      cub_cm_request_handler (root, response);
     }
   catch (const std::exception &e)
     {
@@ -296,7 +299,6 @@ cub_generic_request_handler (struct evhttp_request *req, void *arg)
       build_server_header (response, ERR_WITH_MSG, "internal server error");
     }
 
-  cub_cm_request_handler (root, response);
   evb = evbuffer_new ();
   if (NULL == evb)
     {
