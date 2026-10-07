@@ -32,6 +32,7 @@
 #include <process.h>
 #else
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #endif
 
@@ -51,8 +52,6 @@
 
 static T_CMD_RESULT *new_cmd_result (void);
 static const char *get_cubrid_mode_opt (T_CUBRID_MODE mode);
-static void read_server_status_output (T_SERVER_STATUS_RESULT *res,
-                                       char *out_file);
 static void read_spacedb_output (GeneralSpacedbResult *res, char *out_file);
 
 static int read_start_server_output (char *stdout_log_file,
@@ -61,17 +60,14 @@ static int read_start_server_output (char *stdout_log_file,
 
 static int _size_to_byte_by_unit (double orgin_num, char unit);
 
-char *
-cubrid_cmd_name (char *buf)
-{
-  buf[0] = '\0';
-#if !defined (DO_NOT_USE_CUBRIDENV)
-  sprintf (buf, "%s/%s%s", sco.szCubrid, CUBRID_DIR_BIN, UTIL_CUBRID);
-#else
-  sprintf (buf, "%s/%s", CUBRID_BINDIR, UTIL_CUBRID);
-#endif
-  return buf;
-}
+static void _fill_dbmt_error_from_errfile (const char *err_file, char *_dbmt_error);
+
+/*
+ * cubrid_cmd_name () - now defined in cm_server_status.cpp (still declared
+ * in cm_cmd_exec.h, used here by cmd_csql ()/cmd_spacedb ()/
+ * cmd_start_server () below exactly as before). moved out along with
+ * cmd_cms_server_status ()
+ */
 
 T_CSQL_RESULT *
 cmd_csql (char *dbname, char *uid, char *passwd, T_CUBRID_MODE mode,
@@ -128,15 +124,17 @@ cmd_csql (char *dbname, char *uid, char *passwd, T_CUBRID_MODE mode,
   argv[argc++] = NULL;
 
 #if !defined (DO_NOT_USE_CUBRIDENV)
-  make_temp_filepath (out_file, sco.szCubrid, "DBMT_util", TS_CSQL_CMD, PATH_MAX);
+  gen_tempfile_path (out_file, sco.szCubrid, "DBMT_util", TS_CSQL_CMD, PATH_MAX);
 #else
-  make_temp_filepath (out_file, CUBRID_TMPDIR, "DBMT_util", TS_CSQL_CMD, PATH_MAX);
+  gen_tempfile_path (out_file, CUBRID_TMPDIR, "DBMT_util", TS_CSQL_CMD, PATH_MAX);
 #endif
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "cmd_csql_err", TS_CSQL_CMD, PATH_MAX);
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "cmd_csql_err", TS_CSQL_CMD, PATH_MAX);
 
-  SET_TRANSACTION_NO_WAIT_MODE_ENV ();
+  {
+    const char *extra_envp[] = TRANSACTION_NO_WAIT_MODE_ENVP;
 
-  run_child (argv, 1, NULL, NULL, out_file, NULL);    /* csql */
+    run_child_env (argv, RUN_FOREGROUND, NULL, NULL, out_file, NULL, extra_envp);    /* csql */
+  }
 
   res = new_csql_result ();
   if (res == NULL)
@@ -150,50 +148,145 @@ cmd_csql (char *dbname, char *uid, char *passwd, T_CUBRID_MODE mode,
   return res;
 }
 
-void find_and_parse_cub_admin_version (int &major_version, int &minor_version)
+static void
+_parse_version_field (const char *s, int *out)
+{
+  char *endptr = NULL;
+  long v;
+
+  if (s == NULL || *s == '\0')
+    {
+      return;
+    }
+
+  errno = 0;
+  v = strtol (s, &endptr, 10);
+  if (errno == ERANGE || endptr == s || *endptr != '\0' || v < 0 || v > INT_MAX)
+    {
+      return;
+    }
+
+  *out = (int) v;
+  return;
+}
+
+void find_and_parse_cub_admin_version (int &major_version, int &minor_version, char *build_version, size_t build_version_size)
 {
   const char *argv[3];
   char tmpfile[PATH_MAX], strbuf[BUFFER_MAX_LEN];
   FILE *infile;
   char cmd_name[CUBRID_CMD_NAME_LEN];
+  char *saveptr;
+  int local_major = -1, local_minor = -1;
+  char version[BUFFER_MAX_LEN], vers_buf[BUFFER_MAX_LEN];
+
+  if (build_version != NULL && build_version_size > 0)
+    {
+      build_version[0] = '\0';
+    }
 
   cubrid_cmd_name (cmd_name);
-  make_temp_filepath (tmpfile, sco.dbmt_tmp_dir, "cub_admin_version", TS_GET_SERVER_VERSION, PATH_MAX);
+  if (gen_tempfile_path (tmpfile, sco.dbmt_tmp_dir, "cub_admin_version", TS_GET_SERVER_VERSION, PATH_MAX) < 0)
+    {
+      LOG_ERROR ("Unable to determine cubrid version due to a system error. Set version to %d.%d defined by default.",
+                 cubrid_version_major, cubrid_version_minor);
+      return;
+    }
   argv[0] = cmd_name;
   argv[1] = "--version";
   argv[2] = NULL;
 
-  run_child (argv, 1, NULL, tmpfile, NULL, NULL);
-  if ((infile = fopen (tmpfile, "r")) != NULL)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, tmpfile, NULL, NULL) < 0)
     {
-      if (!fgets (strbuf, sizeof (strbuf), infile) || ! fgets (strbuf, sizeof (strbuf), infile))
-        {
-           LOG_ERROR ("Spacedb is skipped due to temporarily insufficient resources");
-           major_version = minor_version = -1;
-           return;
-        }
-      char version[10];
-      sscanf (strbuf, "%*s %s", version);
+      LOG_ERROR ("Unable to determine cubrid version due to a system error. Set version to %d.%d defined by default.",
+                 cubrid_version_major, cubrid_version_minor);
+      unlink (tmpfile);
+      return;
+    }
+  if ((infile = fopen (tmpfile, "r")) == NULL)
+    {
+      LOG_ERROR ("Unable to determine cubrid version due to a system error. Set version to %d.%d defined by default.",
+                 cubrid_version_major, cubrid_version_minor);
+      unlink (tmpfile);
+      return;
+    }
 
-      char *p = strtok (version, ".");
-      major_version = atoi (p);
-      p = strtok (NULL, ".");
-      minor_version = atoi (p);
-
+  if (!fgets (strbuf, sizeof (strbuf), infile) || ! fgets (strbuf, sizeof (strbuf), infile))
+    {
+      LOG_ERROR ("Unable to determine cubrid version due to a system error. Set version to %d.%d defined by default.",
+                 cubrid_version_major, cubrid_version_minor);
       fclose (infile);
       unlink (tmpfile);
+      return;
+    }
+
+  if (sscanf (strbuf, "%*s %127s", version) != 1)
+    {
+      LOG_ERROR ("Unable to parse cubrid version from '%s'. Set version to %d.%d defined by default.",
+                 strbuf, cubrid_version_major, cubrid_version_minor);
+      fclose (infile);
+      unlink (tmpfile);
+      return;
+    }
+
+  snprintf (vers_buf, BUFFER_MAX_LEN, "%s", version);
+  char *p = STRTOK (version, ".", &saveptr);
+  if (p != NULL)
+    {
+      _parse_version_field (p, &local_major);
+    }
+
+  p = STRTOK (NULL, ".", &saveptr);
+
+  if (p != NULL)
+    {
+      _parse_version_field (p, &local_minor);
+    }
+
+  if (local_major < 0 || local_minor < 0)
+    {
+      LOG_ERROR ("Unable to parse cubrid version from '%s'. Set version to %d.%d defined by default.",
+                 vers_buf, cubrid_version_major, cubrid_version_minor);
+    }
+  else if (local_major < 10) /* this CMS supports version 10.0 or higher */
+    {
+      LOG_ERROR ("cubrid version %d.%d is not supported (10.0 or higher required). "
+                 "Set version to %d.%d defined by default.",
+                 local_major, local_minor, cubrid_version_major, cubrid_version_minor);
     }
   else
     {
-      major_version = minor_version = -1;
+      major_version = local_major;
+      minor_version = local_minor;
     }
+
+  if (build_version != NULL && build_version_size > 0)
+    {
+      char *lparen = strchr (strbuf, '(');
+      if (lparen != NULL)
+        {
+          char *rparen = strchr (lparen + 1, ')');
+          if (rparen != NULL && rparen > lparen + 1)
+            {
+              size_t len = (size_t) (rparen - (lparen + 1));
+              if (len >= build_version_size)
+                {
+                  len = build_version_size - 1;
+                }
+              strncpy (build_version, lparen + 1, len);
+              build_version[len] = '\0';
+            }
+        }
+    }
+
+  fclose (infile);
+  unlink (tmpfile);
 }
 
 GeneralSpacedbResult *
 cmd_spacedb (const char *dbname, T_CUBRID_MODE mode)
 {
   GeneralSpacedbResult *res = NULL;
-  int minor_version, major_version;
   char out_file[PATH_MAX];
   char cubrid_err_file[PATH_MAX];
   char cmd_name[CUBRID_CMD_NAME_LEN];
@@ -202,15 +295,13 @@ cmd_spacedb (const char *dbname, T_CUBRID_MODE mode)
   int argc = 0;
   cubrid_err_file[0] = '\0';
 
-  if (IS_INVALID_CUBRID_VERS_MAJOR (cubrid_version_major))
-    {
-      LOG_ERROR ("Invalid CUBRID Engine Version: %d.%d", cubrid_version_major, cubrid_version_minor);
-      find_and_parse_cub_admin_version (major_version, minor_version);
-      cubrid_version_major = major_version;
-      cubrid_version_minor = minor_version;
-    }
+  /*
+   * To ensure thread safety, the running cubrid engine version is attempted only once.
+   * If the cubrid engine version fails to be determined at startup,
+   * the default version (currently 11.4) is assumed.
+   */
 
-  if (cubrid_version_major < 10 || (cubrid_version_minor == 10 && cubrid_version_minor == 0))
+  if (cubrid_version_major < 10 || (cubrid_version_major == 10 && cubrid_version_minor == 0))
     {
       res = new SpaceDbResultOldFormat();
     }
@@ -219,7 +310,7 @@ cmd_spacedb (const char *dbname, T_CUBRID_MODE mode)
       res = new SpaceDbResultNewFormat();
     }
 
-  make_temp_filepath (out_file, sco.dbmt_tmp_dir, "DBMT_util", TS_DB_SPACE_INFO, PATH_MAX);
+  gen_tempfile_path (out_file, sco.dbmt_tmp_dir, "DBMT_util", TS_DB_SPACE_INFO, PATH_MAX);
   cubrid_cmd_name (cmd_name);
   argv[argc++] = cmd_name;
   argv[argc++] = UTIL_OPTION_SPACEDB;
@@ -232,8 +323,8 @@ cmd_spacedb (const char *dbname, T_CUBRID_MODE mode)
   argv[argc++] = "-p";
   argv[argc++] = NULL;
 
-  make_temp_filepath (cubrid_err_file, sco.dbmt_tmp_dir, "cmd_spacedb_err", TS_DB_SPACE_INFO, PATH_MAX);
-  run_child (argv, 1, NULL, NULL, cubrid_err_file, NULL);    /* spacedb */
+  gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "cmd_spacedb_err", TS_DB_SPACE_INFO, PATH_MAX);
+  run_child_env (argv, RUN_FOREGROUND, NULL, NULL, cubrid_err_file, NULL);    /* spacedb */
   read_error_file (cubrid_err_file, err_message, ERR_MSG_SIZE);
   res->set_err_msg (err_message);
   read_spacedb_output (res, out_file);
@@ -255,19 +346,17 @@ cmd_start_server (char *dbname, char *err_buf, int err_buf_size)
   int ret_val;
   char cmd_name[CUBRID_CMD_NAME_LEN];
   const char *argv[5];
-
-#ifdef HPUX
-  char jvm_env_string[32];
-#endif
+  const char *extra_envp[3];
+  int envc = 0;
 
   cmd_start_master ();
-  make_temp_filepath (stdout_log_file, sco.dbmt_tmp_dir, "cmserverstart", TS_CMSERVERSTART, PATH_MAX);
-  make_temp_filepath (stderr_log_file, sco.dbmt_tmp_dir, "cmserverstart2", TS_CMSERVERSTART, PATH_MAX);
 
+  gen_tempfile_path (stdout_log_file, sco.dbmt_tmp_dir, "cmserverstart", TS_CMSERVERSTART, PATH_MAX);
+  gen_tempfile_path (stderr_log_file, sco.dbmt_tmp_dir, "cmserverstart2", TS_CMSERVERSTART, PATH_MAX);
 
   /* unset CUBRID_ERROR_LOG environment variable, using default value */
 #if defined(WINDOWS)
-  _putenv ("CUBRID_ERROR_LOG=");
+  PUT_ENV ("CUBRID_ERROR_LOG", "");
 #else
   unsetenv ("CUBRID_ERROR_LOG");
 #endif
@@ -285,20 +374,10 @@ cmd_start_server (char *dbname, char *err_buf, int err_buf_size)
   argv[3] = dbname;
   argv[4] = NULL;
 
-#ifdef HPUX
-#ifdef HPUX_IA64
-  strcpy (jvm_env_string, "LD_PRELOAD=libjvm.so");
-#else /* pa-risc */
-  strcpy (jvm_env_string, "LD_PRELOAD=libjvm.sl");
-#endif
-  putenv (jvm_env_string);
-#endif
+  extra_envp[envc++] = "CUBRID_ERROR_LOG=";    /* removing env variable CUBRID_ERROR_LOG if exists */
+  extra_envp[envc] = NULL;
 
-  pid = run_child (argv, 1, NULL, stdout_log_file, stderr_log_file, NULL);    /* start server */
-
-#ifdef HPUX
-  putenv ("LD_PRELOAD=");
-#endif
+  pid = run_child_env (argv, RUN_FOREGROUND, NULL, stdout_log_file, stderr_log_file, NULL, extra_envp);    /* start server */
 
   if (pid < 0)
     {
@@ -344,7 +423,7 @@ cmd_stop_server (char *dbname, char *err_buf, int err_buf_size)
   argv[2] = PRINT_CMD_STOP;
   argv[3] = dbname;
   argv[4] = NULL;
-  if (run_child (argv, 1, NULL, NULL, NULL, NULL) < 0)
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, NULL) < 0)
     {
       /* stop_server */
       if (err_buf)
@@ -359,7 +438,7 @@ cmd_stop_server (char *dbname, char *err_buf, int err_buf_size)
   for (t = timeout; t > 0; t -= interval)
     {
       SLEEP_MILISEC (interval, 0);
-      if (!uIsDatabaseActive (dbname))
+      if (!cms_is_database_active (dbname))
         {
           return 0;
         }
@@ -389,10 +468,258 @@ cmd_start_master (void)
   argv[0] = cmd_name;
   argv[1] = NULL;
 
-  pid = run_child (argv, 0, NULL, NULL, NULL, NULL);    /* cub_master */
+  pid = run_child_env (argv, RUN_BACKGROUND, NULL, NULL, NULL, NULL);    /* cub_master */
   SLEEP_MILISEC (0, 500);
 }
 
+/*
+ * cub_jobsa_cmd_name () / cub_sainfo_cmd_name () - build the path to the
+ * SA-mode helper executables
+ */
+static char *
+cub_jobsa_cmd_name (char *buf)
+{
+  buf[0] = '\0';
+#if !defined (DO_NOT_USE_CUBRIDENV)
+  snprintf (buf, PATH_MAX, "%s/%scub_jobsa%s", sco.szCubrid, CUBRID_DIR_BIN, DBMT_EXE_EXT);
+#else
+  snprintf (buf, PATH_MAX, "%s/cub_jobsa%s", CUBRID_BINDIR, DBMT_EXE_EXT);
+#endif
+  return buf;
+}
+
+static char *
+cub_sainfo_cmd_name (char *buf)
+{
+  buf[0] = '\0';
+#if !defined (DO_NOT_USE_CUBRIDENV)
+  snprintf (buf, PATH_MAX, "%s/%scub_sainfo%s", sco.szCubrid, CUBRID_DIR_BIN, DBMT_EXE_EXT);
+#else
+  snprintf (buf, PATH_MAX, "%s/cub_sainfo%s", CUBRID_BINDIR, DBMT_EXE_EXT);
+#endif
+  return buf;
+}
+
+/*
+ * _fill_dbmt_error_from_errfile () -
+ * fill _dbmt_error with err_file's content via read_error_file (),
+ * or "unknown error" when err_file doesn't exist, or * empty
+ */
+static void
+_fill_dbmt_error_from_errfile (const char *err_file, char *_dbmt_error)
+{
+  if (read_error_file (err_file, _dbmt_error, DBMT_ERROR_MSG_SIZE) == 0
+      || _dbmt_error[0] == '\0')
+    {
+      strcpy_limit (_dbmt_error, "unknown error", DBMT_ERROR_MSG_SIZE);
+    }
+}
+
+int
+cmd_class_info_sa (const char *dbname, const char *uid, const char *passwd,
+                   const char *cli_ver_val, nvplist *out, char *_dbmt_error)
+{
+  char strbuf[1024];
+  char outfile[PATH_MAX], errfile[PATH_MAX];
+  FILE *fp;
+  int ret_val = ERR_NO_ERROR;
+  char cmd_name[PATH_MAX];
+  const char *argv[10];
+  char cli_ver[10];
+  char opcode[10];
+  int major_ver, minor_ver;
+  int exit_code = 0;
+  const char *ver_str = (cli_ver_val != NULL) ? cli_ver_val : "1.0";
+  const char *dot;
+
+  if (uid == NULL)
+    {
+      uid = "";
+    }
+  if (passwd == NULL)
+    {
+      passwd = "";
+    }
+
+  if (gen_tempfile_path (outfile, sco.dbmt_tmp_dir, "DBMT_class_info", TS_CLASSINFO, PATH_MAX) < 0)
+    {
+      return ERR_GENERAL_ERROR;
+    }
+  if (snprintf (errfile, PATH_MAX - 1, "%s.err", outfile) < 0)
+    {
+      return ERR_GENERAL_ERROR;
+    }
+  unlink (outfile);
+  unlink (errfile);
+
+  major_ver = atoi (ver_str);
+  dot = strchr (ver_str, '.');
+  minor_ver = (dot != NULL) ? atoi (dot + 1) : 0;
+  snprintf (cli_ver, sizeof (cli_ver), "%d", EMGR_MAKE_VER (major_ver, minor_ver));
+
+  cub_jobsa_cmd_name (cmd_name);
+  snprintf (opcode, sizeof (opcode), "%d", CMS_EMS_SA_CLASS_INFO);
+
+  argv[0] = cmd_name;
+  argv[1] = opcode;
+  argv[2] = dbname;
+  argv[3] = uid;
+  argv[4] = passwd;
+  argv[5] = outfile;
+  argv[6] = errfile;
+  argv[7] = cli_ver;
+  argv[8] = NULL;
+
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, &exit_code) < 0)
+    {
+      strcpy_limit (_dbmt_error, argv[0], DBMT_ERROR_MSG_SIZE);
+      unlink (outfile);
+      unlink (errfile);
+      return ERR_SYSTEM_CALL;
+    }
+
+  if (!ut_child_exited_ok (exit_code))
+    {
+      _fill_dbmt_error_from_errfile (errfile, _dbmt_error);
+      ret_val = ERR_WITH_MSG;
+      goto class_info_sa_finale;
+    }
+
+  fp = fopen (outfile, "r");
+  if (fp == NULL)
+    {
+      strcpy_limit (_dbmt_error, "class_info", DBMT_ERROR_MSG_SIZE);
+      ret_val = ERR_SYSTEM_CALL;
+      goto class_info_sa_finale;
+    }
+
+  nv_add_nvp (out, "dbname", dbname);
+  while (fgets (strbuf, sizeof (strbuf), fp))
+    {
+      char name[32], value[128];
+
+      if (sscanf (strbuf, "%31s %127s", name, value) < 2)
+        {
+          continue;
+        }
+      nv_add_nvp (out, name, value);
+    }
+  fclose (fp);
+
+class_info_sa_finale:
+  unlink (outfile);
+  unlink (errfile);
+  return ret_val;
+}
+
+int
+cmd_get_triggerinfo_sa (const char *dbname, const char *uid, const char *passwd,
+                        nvplist *res, char *_dbmt_error)
+{
+  char outfile[PATH_MAX], errfile[PATH_MAX];
+  int ret_val = ERR_NO_ERROR;
+  char cmd_name[PATH_MAX];
+  const char *argv[10];
+  int exit_code = 0;
+
+  if (uid == NULL)
+    {
+      uid = "";
+    }
+  if (passwd == NULL)
+    {
+      passwd = "";
+    }
+
+  if (gen_tempfile_path (outfile, sco.dbmt_tmp_dir, "DBMT_trigger_info", TS_GETTRIGGERINFO, PATH_MAX) < 0)
+    {
+      return ERR_GENERAL_ERROR;
+    }
+  if (snprintf (errfile, PATH_MAX - 1, "%s.err", outfile) < 0)
+    {
+      return ERR_GENERAL_ERROR;
+    }
+  unlink (outfile);
+  unlink (errfile);
+
+  cub_sainfo_cmd_name (cmd_name);
+
+  argv[0] = cmd_name;
+  argv[1] = dbname;
+  argv[2] = uid;
+  argv[3] = passwd;
+  argv[4] = outfile;
+  argv[5] = errfile;
+  argv[6] = NULL;
+
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, NULL, &exit_code) < 0)
+    {
+      strcpy_limit (_dbmt_error, argv[0], DBMT_ERROR_MSG_SIZE);
+      unlink (outfile);
+      unlink (errfile);
+      return ERR_SYSTEM_CALL;
+    }
+
+  if (!ut_child_exited_ok (exit_code))
+    {
+      _fill_dbmt_error_from_errfile (errfile, _dbmt_error);
+      ret_val = ERR_WITH_MSG;
+      goto trigger_info_sa_finale;
+    }
+
+  nv_add_nvp (res, "dbname", dbname);
+  ret_val = nv_readfrom (res, outfile);
+
+trigger_info_sa_finale:
+  unlink (outfile);
+  unlink (errfile);
+  return ret_val;
+}
+
+int
+cmd_optimizedb_sa (const char *dbname, const char *classname, char *_dbmt_error)
+{
+  char cmd_name[PATH_MAX];
+  const char *argv[6];
+  int argc = 0;
+  int exit_code = 0;
+  char cubrid_err_file[PATH_MAX];
+
+  cubrid_cmd_name (cmd_name);
+
+  if (gen_tempfile_path (cubrid_err_file, sco.dbmt_tmp_dir, "optimizedb", TS_OPTIMIZEDB, PATH_MAX) < 0)
+    {
+      strcpy_limit (_dbmt_error, "optimizedb", DBMT_ERROR_MSG_SIZE);
+      return ERR_GENERAL_ERROR;
+    }
+
+  argv[argc++] = cmd_name;
+  argv[argc++] = UTIL_OPTION_OPTIMIZEDB;
+  if (classname != NULL)
+    {
+      argv[argc++] = "--" OPTIMIZE_CLASS_NAME_L;
+      argv[argc++] = classname;
+    }
+  argv[argc++] = dbname;
+  argv[argc++] = NULL;
+
+  if (run_child_env (argv, RUN_FOREGROUND, NULL, NULL, cubrid_err_file, &exit_code) < 0)
+    {
+      strcpy_limit (_dbmt_error, argv[0], DBMT_ERROR_MSG_SIZE);
+      unlink (cubrid_err_file);
+      return ERR_SYSTEM_CALL;
+    }
+
+  if (!ut_child_exited_ok (exit_code))
+    {
+      _fill_dbmt_error_from_errfile (cubrid_err_file, _dbmt_error);
+      unlink (cubrid_err_file);
+      return ERR_WITH_MSG;
+    }
+
+  unlink (cubrid_err_file);
+  return ERR_NO_ERROR;
+}
 
 int
 read_csql_error_file (char *err_file, char *err_buf, int err_buf_size)
@@ -827,21 +1154,28 @@ _size_to_byte_by_unit (double orgin_num, char unit)
 
 void SpaceDbResultNewFormat::add_volume (char *str_buf)
 {
-  char purpose[128], volume_name[PATH_MAX], type[32];
+  char purpose[COLUMN_VALUE_MAX_SIZE], volume_name[4096], type[COLUMN_VALUE_MAX_SIZE];
   struct stat statbuf;
 
   SpaceDbVolumeInfoNewFormat volume;
-  sscanf (str_buf, "%d %s %s DATA %d %d %d %s", &volume.volid, type, purpose,
+
+  memset (&volume, 0, sizeof (volume));
+  purpose[0] = volume_name[0] = type[0] = '\0';
+
+  sscanf (str_buf, "%d %31s %31s DATA %d %d %d %4095s", &volume.volid, type, purpose,
           &volume.used_size,
           &volume.free_size,
           &volume.total_size,
           volume_name);
-  strcpy (volume.purpose, purpose);
-  strcpy (volume.type, type);
-  strcpy (volume.volume_name, volume_name);
 
-  stat (volume_name, &statbuf);
+  strcpy_limit (volume.purpose, purpose, sizeof (volume.purpose));
+  strcpy_limit (volume.type, type, sizeof (volume.type));
+  strcpy_limit (volume.volume_name, volume_name, sizeof (volume.volume_name));
+
+  if (stat (volume_name, &statbuf) == 0)
+    {
   volume.date = statbuf.st_mtime;
+    }
 
   volumes.push_back (volume);
 }
@@ -851,19 +1185,20 @@ int SpaceDbResultOldFormat::get_volume_info (char *str_buf, SpaceDbVolumeInfoOld
   int volid, total_page, free_page;
   char purpose[COLUMN_VALUE_MAX_SIZE], vol_name[PATH_MAX];
   char *token = NULL, *p;
+  char *saveptr;
   struct stat statbuf;
 
   volid = total_page = free_page = 0;
   purpose[0] = vol_name[0] = '\0';
 
-  token = strtok (str_buf, " ");
+  token = STRTOK (str_buf, " ", &saveptr);
   if (token == NULL)
     {
       return FALSE;
     }
   volid = atoi (token);
 
-  token = strtok (NULL, " ");
+  token = STRTOK (NULL, " ", &saveptr);
   if (token == NULL)
     {
       return FALSE;
@@ -876,7 +1211,7 @@ int SpaceDbResultOldFormat::get_volume_info (char *str_buf, SpaceDbVolumeInfoOld
       return FALSE;
     }
 
-  token = strtok (NULL, " ");
+  token = STRTOK (NULL, " ", &saveptr);
   if (token == NULL)
     {
       return FALSE;
@@ -894,7 +1229,7 @@ int SpaceDbResultOldFormat::get_volume_info (char *str_buf, SpaceDbVolumeInfoOld
           strcat (purpose, token);
         }
 
-      token = strtok (NULL, " ");
+      token = STRTOK (NULL, " ", &saveptr);
       if (token == NULL)
         {
           return FALSE;
@@ -902,14 +1237,14 @@ int SpaceDbResultOldFormat::get_volume_info (char *str_buf, SpaceDbVolumeInfoOld
     }
   total_page = atoi (token);
 
-  token = strtok (NULL, " ");
+  token = STRTOK (NULL, " ", &saveptr);
   if (token == NULL)
     {
       return FALSE;
     }
   free_page = atoi (token);
 
-  token = strtok (NULL, "\n");
+  token = STRTOK (NULL, "\n", &saveptr);
   if (token == NULL)
     {
       return FALSE;
@@ -937,8 +1272,8 @@ int SpaceDbResultOldFormat::get_volume_info (char *str_buf, SpaceDbVolumeInfoOld
   else
     {
       *p = '\0';
-      snprintf (volume.location, sizeof (volume.location) - 1, "%s", vol_name);
-      snprintf (volume.vol_name, sizeof (volume.vol_name) - 1, "%s", p + 1);
+      snprintf (volume.location, sizeof (volume.location), "%s", vol_name);
+      snprintf (volume.vol_name, sizeof (volume.vol_name), "%s", p + 1);
       *p = '/';
     }
 
@@ -951,7 +1286,7 @@ void SpaceDbResultOldFormat::create_result (nvplist *res)
   nv_update_val_int (res, "pagesize", page_size);
   nv_update_val_int (res, "logpagesize", log_page_size);
 
-  for (int i = 0; i < volumes.size(); i++)
+  for (size_t i = 0; i < volumes.size(); i++)
     {
       nv_add_nvp (res, "open", "spaceinfo");
       nv_add_nvp (res, "spacename", volumes[i].vol_name);
@@ -964,7 +1299,7 @@ void SpaceDbResultOldFormat::create_result (nvplist *res)
       nv_add_nvp (res, "close", "spaceinfo");
     }
 
-  for (int i = 0; i < temporary_volumes.size(); i++)
+  for (size_t i = 0; i < temporary_volumes.size(); i++)
     {
       nv_add_nvp (res, "open", "spaceinfo");
       nv_add_nvp (res, "spacename", temporary_volumes[i].vol_name);
@@ -995,7 +1330,7 @@ void SpaceDbResultNewFormat::create_result (nvplist *res)
       nv_add_nvp (res, "close", "dbinfo");
     }
 
-  for (int i = 0; i < volumes.size(); i++)
+  for (size_t i = 0; i < volumes.size(); i++)
     {
       nv_add_nvp (res, "open", "spaceinfo");
       nv_add_nvp (res, "type", volumes[i].type);
@@ -1026,7 +1361,8 @@ void SpaceDbResultNewFormat::create_result (nvplist *res)
 
 int SpaceDbResultOldFormat::get_cnt_tpage()
 {
-  int cnt_tpage = 0, i;
+  int cnt_tpage = 0;
+  size_t i;
 
   for (i = 0; i < volumes.size(); i++)
     {
@@ -1044,7 +1380,7 @@ int SpaceDbResultNewFormat::get_cnt_tpage()
 {
   int cnt_tpage = 0;
 
-  for (int i = 0; i < volumes.size(); i++)
+  for (size_t i = 0; i < volumes.size(); i++)
     {
       cnt_tpage += volumes[i].total_size;
     }
@@ -1054,18 +1390,18 @@ int SpaceDbResultNewFormat::get_cnt_tpage()
 
 time_t SpaceDbResultOldFormat::get_my_time (char *dbloca)
 {
-  char strbuf[BUFFER_MAX_LEN];
+  char strbuf[COMPOSED_PATH_MAX];
   char volname[PATH_MAX] = { '\0' };
   time_t mytime = time (NULL);;
   struct stat statbuf;
 
-  for (int i = 0; i < volumes.size(); i++)
+  for (size_t i = 0; i < volumes.size(); i++)
     {
       if (uStringEqual (volumes[i].purpose, "DATA")
           || uStringEqual (volumes[i].purpose, "INDEX"))
         {
           strcpy (volname, volumes[i].vol_name);
-          snprintf (strbuf, BUFFER_MAX_LEN, "%s/%s", dbloca, volname);
+	  snprintf (strbuf, sizeof (strbuf), "%s/%s", dbloca, volname);
           if (!stat (strbuf, &statbuf))
             {
               mytime = statbuf.st_mtime;
@@ -1078,17 +1414,17 @@ time_t SpaceDbResultOldFormat::get_my_time (char *dbloca)
 
 time_t SpaceDbResultNewFormat::get_my_time (char *dbloca)
 {
-  char strbuf[BUFFER_MAX_LEN];
+  char strbuf[COMPOSED_PATH_MAX];
   char volname[PATH_MAX] = { '\0' };
   time_t mytime = time (NULL);;
   struct stat statbuf;
 
-  for (int i = 0; i < volumes.size(); i++)
+  for (size_t i = 0; i < volumes.size(); i++)
     {
       if (uStringEqual (volumes[i].purpose, "PERMANENT"))
         {
           strcpy (volname, volumes[i].volume_name);
-          snprintf (strbuf, BUFFER_MAX_LEN, "%s/%s", dbloca, volname);
+	  snprintf (strbuf, sizeof (strbuf), "%s/%s", dbloca, volname);
           if (!stat (strbuf, &statbuf))
             {
               mytime = statbuf.st_mtime;
@@ -1349,12 +1685,15 @@ void SpaceDbResultNewFormat::read_spacedb_output (FILE *fp)
         {
           break;
         }
-      sscanf (str_buf, "%s %s DATA %d %d %d %d", databaseSpaceDescriptions[index].type,
+      if (index < DATABASE_DESCRIPTION_NUM_LINES)
+	{
+	  sscanf (str_buf, "%31s %31s DATA %d %d %d %d", databaseSpaceDescriptions[index].type,
               databaseSpaceDescriptions[index].purpose, &databaseSpaceDescriptions[index].volume_count,
               &databaseSpaceDescriptions[index].used_size,
               &databaseSpaceDescriptions[index].free_size,
               &databaseSpaceDescriptions[index].total_size);
       index++;
+    }
     }
 
   while (fgets (str_buf, sizeof (str_buf), fp))
@@ -1394,14 +1733,16 @@ void SpaceDbResultNewFormat::read_spacedb_output (FILE *fp)
         {
           continue;
         }
-
-      sscanf (str_buf, "%s %d %d %d %d %d\n", fileSpaceDescriptions[index].data_type,
+      if (index < FILES_DESCRIPTION_NUM_LINES)
+	{
+	  sscanf (str_buf, "%31s %d %d %d %d %d\n", fileSpaceDescriptions[index].data_type,
               &fileSpaceDescriptions[index].file_count,
               &fileSpaceDescriptions[index].used_size,
               &fileSpaceDescriptions[index].file_table_size,
               &fileSpaceDescriptions[index].reserved_size,
               &fileSpaceDescriptions[index].total_size);
       index++;
+    }
     }
 
   fclose (fp);
